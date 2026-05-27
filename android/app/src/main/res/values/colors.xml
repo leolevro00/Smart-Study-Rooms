@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="screen_background">#F5F7FA</color>
+    <color name="text_primary">#17202A</color>
+    <color name="text_secondary">#5D6D7E</color>
+    <color name="card_neutral">#FFFFFF</color>
+    <color name="status_recommended_bg">#DFF3E4</color>
+    <color name="status_acceptable_bg">#FFF3CD</color>
+    <color name="status_low_bg">#FFE2CC</color>
+    <color name="status_bad_bg">#F8D7DA</color>
+    <color name="message_background">#E8EEF7</color>
+    <color name="recommendation_background">#DCEBFF</color>
+</resources>

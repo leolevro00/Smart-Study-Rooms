@@ -1,1 +1,269 @@
-# Smart-Study-Rooms
+# Smart Study Rooms
+
+Smart Study Rooms e un progetto universitario IoT per monitorare in tempo reale due aule studio e suggerire quale sia la piu adatta allo studio in base a temperatura, umidita, rumore e presenza.
+
+## Obiettivo
+
+Il sistema raccoglie dati ambientali da due nodi IoT indipendenti, li invia a Firebase Realtime Database e li mostra in un'app Android nativa scritta in Java. L'app calcola uno score da 0 a 100 per ogni aula e indica automaticamente l'aula consigliata.
+
+## Architettura
+
+Flusso generale:
+
+```text
+Sensori -> Microcontrollore -> Wi-Fi -> Firebase Realtime Database -> App Android
+```
+
+Ogni aula ha un nodo IoT separato:
+
+- Nodo Aula 1: Arduino UNO R4 WiFi, DHT11/DHT22, sensore rumore analogico KY-037/KY-038, PIR opzionale.
+- Nodo Aula 2: Arduino UNO R4 WiFi o ESP32 con gli stessi sensori.
+
+Il firmware aggiorna solo il proprio nodo Firebase:
+
+- `rooms/room1`
+- `rooms/room2`
+
+Lo score viene calcolato lato Android, cosi il microcontrollore resta semplice e si occupa solo di leggere e inviare dati.
+
+## Struttura del progetto
+
+```text
+.
+├── android/                         # App Android Java/XML
+│   ├── build.gradle
+│   ├── settings.gradle
+│   └── app/
+│       ├── build.gradle
+│       ├── google-services.json.example
+│       └── src/main/
+│           ├── AndroidManifest.xml
+│           ├── java/com/example/smartstudyrooms/
+│           │   ├── MainActivity.java
+│           │   ├── Room.java
+│           │   └── RoomScoreCalculator.java
+│           └── res/
+│               ├── drawable/
+│               ├── layout/activity_main.xml
+│               └── values/
+├── arduino/
+│   └── SmartStudyRoomNode/SmartStudyRoomNode.ino
+├── firebase/
+│   ├── database.rules.json
+│   └── sample-data.json
+└── simulator/
+    └── firebase_simulator.py
+```
+
+## Firebase Realtime Database
+
+La struttura consigliata del database e:
+
+```json
+{
+  "rooms": {
+    "room1": {
+      "name": "Aula 1",
+      "temperature": 22.4,
+      "humidity": 48,
+      "noise": 35,
+      "presence": true,
+      "lastUpdate": 1710000000000
+    },
+    "room2": {
+      "name": "Aula 2",
+      "temperature": 24.1,
+      "humidity": 52,
+      "noise": 61,
+      "presence": false,
+      "lastUpdate": 1710000000000
+    }
+  }
+}
+```
+
+Nota: `lastUpdate` e gestito come timestamp Unix in millisecondi. Il firmware Arduino usa il server timestamp di Firebase con `{ ".sv": "timestamp" }`, quindi non serve sincronizzare un orologio sul microcontrollore.
+
+### Regole temporanee
+
+Durante il prototipo puoi usare le regole in [firebase/database.rules.json](firebase/database.rules.json):
+
+```json
+{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}
+```
+
+Queste regole sono solo per test. Non sono sicure per produzione perche permettono lettura e scrittura pubblica a chiunque conosca l'URL del database.
+
+## Configurare Firebase
+
+1. Vai su [Firebase Console](https://console.firebase.google.com/).
+2. Crea un nuovo progetto.
+3. Aggiungi un'app Android con package name:
+   `com.example.smartstudyrooms`
+4. Scarica il file `google-services.json`.
+5. Copialo in:
+   `android/app/google-services.json`
+6. Crea un Realtime Database.
+7. Imposta temporaneamente le regole di test presenti in `firebase/database.rules.json`.
+8. Prendi nota dell'host del database, ad esempio:
+   `smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app`
+
+## App Android
+
+L'app Android usa:
+
+- Java
+- XML layout
+- Firebase Realtime Database SDK
+- Due card, una per aula
+- Aggiornamento realtime tramite `ValueEventListener`
+- Calcolo dello score lato app
+- Gestione dati mancanti ed errori di connessione
+
+Classi principali:
+
+- `MainActivity.java`: legge `rooms` da Firebase, aggiorna la UI e confronta le aule.
+- `Room.java`: modello dati compatibile con Firebase.
+- `RoomScoreCalculator.java`: calcola score, stato testuale e descrizione del rumore.
+
+Per aprire l'app:
+
+1. Apri la cartella `android/` con Android Studio.
+2. Inserisci `google-services.json` in `android/app/`.
+3. Sincronizza Gradle.
+4. Esegui l'app su emulatore o dispositivo fisico.
+
+## Logica dello score
+
+Lo score massimo e 100:
+
+- Temperatura: max 35 punti
+- Rumore: max 35 punti
+- Umidita: max 20 punti
+- Presenza: max 10 punti
+
+Classificazione:
+
+- `score >= 80`: Consigliata
+- `score >= 60`: Accettabile
+- `score >= 40`: Poco adatta
+- `score < 40`: Sconsigliata
+
+La presenza ha un peso leggero: un'aula senza presenza rilevata riceve un piccolo bonus perche potrebbe essere piu libera.
+
+## Firmware Arduino
+
+Il firmware si trova in:
+
+[arduino/SmartStudyRoomNode/SmartStudyRoomNode.ino](arduino/SmartStudyRoomNode/SmartStudyRoomNode.ino)
+
+Funzioni principali:
+
+- Connessione Wi-Fi
+- Lettura DHT11/DHT22
+- Lettura sensore rumore analogico
+- Lettura PIR opzionale
+- Creazione JSON
+- Invio HTTP `PUT` a Firebase Realtime Database
+- Invio periodico ogni 10 secondi
+- Modalita simulazione integrata
+
+Per duplicare il nodo:
+
+```cpp
+const char* ROOM_ID = "room1";
+const char* ROOM_NAME = "Aula 1";
+```
+
+Per il secondo nodo basta cambiare:
+
+```cpp
+const char* ROOM_ID = "room2";
+const char* ROOM_NAME = "Aula 2";
+```
+
+### Librerie Arduino
+
+Installa dall'Arduino IDE Library Manager:
+
+- `WiFiS3`
+- `ArduinoHttpClient`
+- `DHT sensor library` di Adafruit
+- `Adafruit Unified Sensor`
+
+Poi configura nel file `.ino`:
+
+- `WIFI_SSID`
+- `WIFI_PASSWORD`
+- `FIREBASE_HOST`
+- `ROOM_ID`
+- `ROOM_NAME`
+- `DHT_TYPE`
+- pin dei sensori
+
+## Simulazione senza hardware
+
+Hai due opzioni.
+
+### 1. Simulazione nel firmware Arduino
+
+Nel file `.ino` lascia:
+
+```cpp
+#define USE_SIMULATION 1
+```
+
+Il nodo generera dati realistici:
+
+- temperatura tra 19 e 27 gradi
+- umidita tra 35 e 70%
+- rumore tra 20 e 80
+- presenza casuale
+
+Quando avrai i sensori, imposta:
+
+```cpp
+#define USE_SIMULATION 0
+```
+
+### 2. Simulatore Python
+
+Lo script [simulator/firebase_simulator.py](simulator/firebase_simulator.py) invia dati finti per `room1` e `room2` direttamente a Firebase usando l'API REST.
+
+Esempio:
+
+```bash
+python simulator/firebase_simulator.py --database-host smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
+```
+
+Per fermarlo usa `CTRL+C`.
+
+## Possibili sviluppi futuri
+
+- Aggiunta di piu aule.
+- Storico dei dati ambientali.
+- Grafici temporali nell'app.
+- Notifiche quando un'aula diventa rumorosa.
+- Autenticazione utenti Firebase.
+- Prenotazione aula.
+- Dashboard web per amministratori.
+- Sensori CO2 o qualita dell'aria.
+- Machine learning per prevedere occupazione o comfort.
+
+## Note architetturali
+
+Per un prototipo universitario, Firebase Realtime Database e una scelta semplice e veloce per aggiornamenti realtime. Se il progetto crescesse, una buona evoluzione sarebbe separare i dati correnti dallo storico:
+
+```text
+rooms/room1              # stato corrente
+rooms/room2              # stato corrente
+history/room1/<pushId>   # misure storiche
+history/room2/<pushId>   # misure storiche
+```
+
+In questo modo l'app resta veloce per la schermata principale, ma puoi aggiungere grafici e analisi senza appesantire il nodo `rooms`.

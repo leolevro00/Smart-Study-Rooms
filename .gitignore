@@ -1,0 +1,18 @@
+# Android / Gradle
+.gradle/
+build/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+
+# Local Firebase configuration. Keep google-services.json.example in git.
+android/app/google-services.json
+
+# IDE
+.idea/
+*.iml
+
+# Python
+__pycache__/
+*.pyc
