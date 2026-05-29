@@ -23,6 +23,13 @@
         <item name="android:textSize">16sp</item>
     </style>
 
+    <style name="RoomChartBar" parent="@android:style/Widget.ProgressBar.Horizontal">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">8dp</item>
+        <item name="android:layout_marginTop">6dp</item>
+        <item name="android:progressBackgroundTint">@color/chart_track</item>
+    </style>
+
     <style name="RoomScoreText">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>

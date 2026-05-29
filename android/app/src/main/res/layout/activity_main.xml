@@ -68,15 +68,36 @@
                     style="@style/RoomMetricText"
                     android:text="Temperatura: N/D" />
 
+                <ProgressBar
+                    android:id="@+id/room1TemperatureBar"
+                    style="@style/RoomChartBar"
+                    android:max="40"
+                    android:progress="0"
+                    android:progressTint="@color/chart_temperature" />
+
                 <TextView
                     android:id="@+id/room1Humidity"
                     style="@style/RoomMetricText"
                     android:text="Umidita: N/D" />
 
+                <ProgressBar
+                    android:id="@+id/room1HumidityBar"
+                    style="@style/RoomChartBar"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/chart_humidity" />
+
                 <TextView
                     android:id="@+id/room1Noise"
                     style="@style/RoomMetricText"
                     android:text="Rumore: N/D" />
+
+                <ProgressBar
+                    android:id="@+id/room1NoiseBar"
+                    style="@style/RoomChartBar"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/chart_noise" />
 
                 <TextView
                     android:id="@+id/room1Presence"
@@ -124,15 +145,36 @@
                     style="@style/RoomMetricText"
                     android:text="Temperatura: N/D" />
 
+                <ProgressBar
+                    android:id="@+id/room2TemperatureBar"
+                    style="@style/RoomChartBar"
+                    android:max="40"
+                    android:progress="0"
+                    android:progressTint="@color/chart_temperature" />
+
                 <TextView
                     android:id="@+id/room2Humidity"
                     style="@style/RoomMetricText"
                     android:text="Umidita: N/D" />
 
+                <ProgressBar
+                    android:id="@+id/room2HumidityBar"
+                    style="@style/RoomChartBar"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/chart_humidity" />
+
                 <TextView
                     android:id="@+id/room2Noise"
                     style="@style/RoomMetricText"
                     android:text="Rumore: N/D" />
+
+                <ProgressBar
+                    android:id="@+id/room2NoiseBar"
+                    style="@style/RoomChartBar"
+                    android:max="100"
+                    android:progress="0"
+                    android:progressTint="@color/chart_noise" />
 
                 <TextView
                     android:id="@+id/room2Presence"

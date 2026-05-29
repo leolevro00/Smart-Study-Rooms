@@ -10,4 +10,8 @@
     <color name="status_bad_bg">#F8D7DA</color>
     <color name="message_background">#E8EEF7</color>
     <color name="recommendation_background">#DCEBFF</color>
+    <color name="chart_track">#DDE3EA</color>
+    <color name="chart_temperature">#D97706</color>
+    <color name="chart_humidity">#0284C7</color>
+    <color name="chart_noise">#7C3AED</color>
 </resources>

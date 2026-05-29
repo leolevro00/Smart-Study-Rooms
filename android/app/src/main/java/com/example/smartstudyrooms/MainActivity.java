@@ -2,6 +2,7 @@ package com.example.smartstudyrooms;
 
 import android.os.Bundle;
 import android.view.View;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -56,8 +57,11 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.room1Card),
                 findViewById(R.id.room1Name),
                 findViewById(R.id.room1Temperature),
+                findViewById(R.id.room1TemperatureBar),
                 findViewById(R.id.room1Humidity),
+                findViewById(R.id.room1HumidityBar),
                 findViewById(R.id.room1Noise),
+                findViewById(R.id.room1NoiseBar),
                 findViewById(R.id.room1Presence),
                 findViewById(R.id.room1LastUpdate),
                 findViewById(R.id.room1Score),
@@ -68,8 +72,11 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.room2Card),
                 findViewById(R.id.room2Name),
                 findViewById(R.id.room2Temperature),
+                findViewById(R.id.room2TemperatureBar),
                 findViewById(R.id.room2Humidity),
+                findViewById(R.id.room2HumidityBar),
                 findViewById(R.id.room2Noise),
+                findViewById(R.id.room2NoiseBar),
                 findViewById(R.id.room2Presence),
                 findViewById(R.id.room2LastUpdate),
                 findViewById(R.id.room2Score),
@@ -130,6 +137,9 @@ public class MainActivity extends AppCompatActivity {
         views.humidity.setText("Umidita: " + formatDecimal(room.getHumidity()) + "%");
         views.noise.setText("Rumore: " + RoomScoreCalculator.getNoiseLabel(room.getNoise())
                 + " (" + formatDecimal(room.getNoise()) + ")");
+        views.temperatureBar.setProgress(progressValue(room.getTemperature(), 40));
+        views.humidityBar.setProgress(progressValue(room.getHumidity(), 100));
+        views.noiseBar.setProgress(progressValue(room.getNoise(), 100));
         views.presence.setText("Presenza: " + formatPresence(room.getPresence()));
         views.lastUpdate.setText("Ultimo aggiornamento: " + formatTimestamp(room.getLastUpdate()));
         views.score.setText("Score: " + score + "/100");
@@ -142,6 +152,9 @@ public class MainActivity extends AppCompatActivity {
         views.temperature.setText("Temperatura: N/D");
         views.humidity.setText("Umidita: N/D");
         views.noise.setText("Rumore: N/D");
+        views.temperatureBar.setProgress(0);
+        views.humidityBar.setProgress(0);
+        views.noiseBar.setProgress(0);
         views.presence.setText("Presenza: N/D");
         views.lastUpdate.setText("Ultimo aggiornamento: N/D");
         views.score.setText("Score: N/D");
@@ -206,6 +219,13 @@ public class MainActivity extends AppCompatActivity {
         return formatter.format(new Date(millis));
     }
 
+    private int progressValue(Double value, int max) {
+        if (value == null) {
+            return 0;
+        }
+        return Math.max(0, Math.min(max, (int) Math.round(value)));
+    }
+
     private String valueOrFallback(String value, String fallback) {
         if (value == null || value.trim().isEmpty()) {
             return fallback;
@@ -230,8 +250,11 @@ public class MainActivity extends AppCompatActivity {
         final CardView card;
         final TextView name;
         final TextView temperature;
+        final ProgressBar temperatureBar;
         final TextView humidity;
+        final ProgressBar humidityBar;
         final TextView noise;
+        final ProgressBar noiseBar;
         final TextView presence;
         final TextView lastUpdate;
         final TextView score;
@@ -241,8 +264,11 @@ public class MainActivity extends AppCompatActivity {
                 CardView card,
                 TextView name,
                 TextView temperature,
+                ProgressBar temperatureBar,
                 TextView humidity,
+                ProgressBar humidityBar,
                 TextView noise,
+                ProgressBar noiseBar,
                 TextView presence,
                 TextView lastUpdate,
                 TextView score,
@@ -251,8 +277,11 @@ public class MainActivity extends AppCompatActivity {
             this.card = card;
             this.name = name;
             this.temperature = temperature;
+            this.temperatureBar = temperatureBar;
             this.humidity = humidity;
+            this.humidityBar = humidityBar;
             this.noise = noise;
+            this.noiseBar = noiseBar;
             this.presence = presence;
             this.lastUpdate = lastUpdate;
             this.score = score;
