@@ -206,6 +206,156 @@ Poi configura nel file `.ino`:
 - `DHT_TYPE`
 - pin dei sensori
 
+### Come testare il codice Arduino
+
+1. Installa Arduino IDE da [arduino.cc](https://www.arduino.cc/en/software).
+
+2. Installa il supporto per Arduino UNO R4 WiFi:
+
+   ```text
+   Tools > Board > Boards Manager
+   ```
+
+   Cerca e installa:
+
+   ```text
+   Arduino UNO R4 Boards
+   ```
+
+   Poi seleziona:
+
+   ```text
+   Tools > Board > Arduino UNO R4 WiFi
+   ```
+
+3. Installa le librerie da:
+
+   ```text
+   Tools > Manage Libraries
+   ```
+
+   Librerie da installare:
+
+   ```text
+   WiFiS3
+   ArduinoHttpClient
+   DHT sensor library
+   Adafruit Unified Sensor
+   ```
+
+   `WiFiS3` di solito e gia inclusa con il pacchetto della scheda, ma va verificato.
+
+4. Apri lo sketch:
+
+   ```text
+   arduino/SmartStudyRoomNode/SmartStudyRoomNode.ino
+   ```
+
+5. Configura Wi-Fi e Firebase modificando queste costanti:
+
+   ```cpp
+   const char* ROOM_ID = "room1";
+   const char* ROOM_NAME = "Aula 1";
+
+   const char* WIFI_SSID = "YOUR_WIFI_SSID";
+   const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+
+   const char* FIREBASE_HOST = "YOUR_PROJECT-default-rtdb.europe-west1.firebasedatabase.app";
+   ```
+
+   Esempio:
+
+   ```cpp
+   const char* ROOM_ID = "room1";
+   const char* ROOM_NAME = "Aula 1";
+
+   const char* WIFI_SSID = "CasaMia";
+   const char* WIFI_PASSWORD = "passwordwifi123";
+
+   const char* FIREBASE_HOST = "smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app";
+   ```
+
+   `FIREBASE_HOST` deve essere scritto senza `https://` e senza `/` finale.
+
+   Corretto:
+
+   ```cpp
+   const char* FIREBASE_HOST = "smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app";
+   ```
+
+   Sbagliato:
+
+   ```cpp
+   const char* FIREBASE_HOST = "https://smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app/";
+   ```
+
+6. Per il primo test senza sensori lascia attiva la simulazione:
+
+   ```cpp
+   #define USE_SIMULATION 1
+   ```
+
+   In questo modo Arduino genera dati finti realistici e li invia a Firebase. Quando collegherai i sensori veri, imposta:
+
+   ```cpp
+   #define USE_SIMULATION 0
+   ```
+
+7. Collega Arduino UNO R4 WiFi al PC con USB.
+
+8. Seleziona la porta:
+
+   ```text
+   Tools > Port
+   ```
+
+9. Premi il pulsante Upload, cioe la freccia verso destra.
+
+10. Apri il Serial Monitor:
+
+    ```text
+    Tools > Serial Monitor
+    ```
+
+    Imposta la velocita a:
+
+    ```text
+    115200 baud
+    ```
+
+    Se tutto funziona dovresti vedere messaggi simili:
+
+    ```text
+    Connecting to Wi-Fi: ...
+    Connected. IP address: ...
+    PUT /rooms/room1.json
+    Firebase status: 200
+    ```
+
+    Uno status `200` indica che Firebase ha ricevuto correttamente i dati.
+
+11. Controlla Firebase Console > Realtime Database. Dovresti vedere:
+
+    ```text
+    rooms
+      room1
+        name: "Aula 1"
+        temperature: ...
+        humidity: ...
+        noise: ...
+        presence: ...
+        lastUpdate: ...
+    ```
+
+12. Per il secondo nodo usa lo stesso sketch cambiando solo:
+
+    ```cpp
+    const char* ROOM_ID = "room2";
+    const char* ROOM_NAME = "Aula 2";
+    ```
+
+    Poi carica il codice sul secondo microcontrollore.
+
 ## Simulazione senza hardware
 
 Hai due opzioni.
