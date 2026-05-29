@@ -123,6 +123,8 @@ L'app Android usa:
 - Due card, una per aula
 - Aggiornamento realtime tramite `ValueEventListener`
 - Calcolo dello score lato app
+- Barre visuali per temperatura, umidita e rumore
+- Notifiche locali quando il rumore di un'aula supera `70/100`
 - Gestione dati mancanti ed errori di connessione
 
 Classi principali:
@@ -130,6 +132,8 @@ Classi principali:
 - `MainActivity.java`: legge `rooms` da Firebase, aggiorna la UI e confronta le aule.
 - `Room.java`: modello dati compatibile con Firebase.
 - `RoomScoreCalculator.java`: calcola score, stato testuale e descrizione del rumore.
+
+Su Android 13 o superiore l'app chiede il permesso notifiche al primo avvio. Le notifiche rumore vengono inviate quando un'aula supera `70/100`; l'avviso viene riattivato solo dopo che il rumore scende almeno sotto `60/100`, per evitare notifiche ripetute.
 
 Per aprire l'app:
 
