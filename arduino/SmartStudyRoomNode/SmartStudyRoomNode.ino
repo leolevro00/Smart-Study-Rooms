@@ -148,7 +148,7 @@ String buildJsonPayload(RoomReading reading) {
   json += String(reading.noise);
   json += ",";
   json += "\"presence\":";
-  json += reading.presence ? "true" : "false";
+  json += (reading.presence ? "true" : "false");
   json += ",";
   json += "\"lastUpdate\":{\".sv\":\"timestamp\"}";
   json += "}";
