@@ -4,15 +4,53 @@ public final class RoomScoreCalculator {
     private RoomScoreCalculator() {
     }
 
+    public enum StudyPreference {
+        BALANCED("Bilanciata", 35, 35, 20, 10),
+        QUIET("Priorita silenzio", 20, 55, 15, 10),
+        THERMAL_COMFORT("Priorita comfort", 50, 25, 20, 5),
+        FREE_ROOM("Priorita aula libera", 25, 25, 15, 35);
+
+        private final String label;
+        private final int temperatureWeight;
+        private final int noiseWeight;
+        private final int humidityWeight;
+        private final int presenceWeight;
+
+        StudyPreference(
+                String label,
+                int temperatureWeight,
+                int noiseWeight,
+                int humidityWeight,
+                int presenceWeight
+        ) {
+            this.label = label;
+            this.temperatureWeight = temperatureWeight;
+            this.noiseWeight = noiseWeight;
+            this.humidityWeight = humidityWeight;
+            this.presenceWeight = presenceWeight;
+        }
+
+        public String getLabel() {
+            return label;
+        }
+    }
+
     public static int calculateScore(Room room) {
+        return calculateScore(room, StudyPreference.BALANCED);
+    }
+
+    public static int calculateScore(Room room, StudyPreference preference) {
         if (room == null) {
             return 0;
         }
+        if (preference == null) {
+            preference = StudyPreference.BALANCED;
+        }
 
-        int score = temperatureScore(room.getTemperature())
-                + noiseScore(room.getNoise())
-                + humidityScore(room.getHumidity())
-                + presenceScore(room.getPresence());
+        int score = weightedScore(temperatureScore(room.getTemperature()), 35, preference.temperatureWeight)
+                + weightedScore(noiseScore(room.getNoise()), 35, preference.noiseWeight)
+                + weightedScore(humidityScore(room.getHumidity()), 20, preference.humidityWeight)
+                + weightedScore(presenceScore(room.getPresence()), 10, preference.presenceWeight);
 
         return clamp(score, 0, 100);
     }
@@ -93,6 +131,10 @@ public final class RoomScoreCalculator {
             return 5;
         }
         return presence ? 5 : 10;
+    }
+
+    private static int weightedScore(int componentScore, int componentMax, int weight) {
+        return Math.round((componentScore / (float) componentMax) * weight);
     }
 
     private static int clamp(int value, int min, int max) {

@@ -125,6 +125,7 @@ L'app Android usa:
 - Calcolo dello score lato app
 - Barre visuali per temperatura, umidita e rumore
 - Notifiche locali quando il rumore di un'aula supera `70/100`
+- Preferenze di studio che modificano i pesi dello score
 - Gestione dati mancanti ed errori di connessione
 
 Classi principali:
@@ -134,6 +135,13 @@ Classi principali:
 - `RoomScoreCalculator.java`: calcola score, stato testuale e descrizione del rumore.
 
 Su Android 13 o superiore l'app chiede il permesso notifiche al primo avvio. Le notifiche rumore vengono inviate quando un'aula supera `70/100`; l'avviso viene riattivato solo dopo che il rumore scende almeno sotto `60/100`, per evitare notifiche ripetute.
+
+La tendina "Preferenza di studio" permette di cambiare il criterio di valutazione:
+
+- `Bilanciata`: pesi standard.
+- `Priorita silenzio`: il rumore pesa di piu nello score.
+- `Priorita comfort`: temperatura e umidita diventano piu importanti.
+- `Priorita aula libera`: la presenza pesa di piu per preferire aule probabilmente meno occupate.
 
 Per aprire l'app:
 

@@ -34,6 +34,25 @@
             android:textSize="15sp" />
 
         <TextView
+            android:id="@+id/preferenceLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:text="@string/preference_label"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <Spinner
+            android:id="@+id/preferenceSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/spinner_background"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
+
+        <TextView
             android:id="@+id/connectionMessage"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

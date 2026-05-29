@@ -3,5 +3,6 @@
     <string name="app_name">Smart Study Rooms</string>
     <string name="app_title">Smart Study Rooms</string>
     <string name="app_subtitle">Monitoraggio realtime delle aule studio</string>
+    <string name="preference_label">Preferenza di studio</string>
     <string name="loading_message">Connessione a Firebase in corso...</string>
 </resources>

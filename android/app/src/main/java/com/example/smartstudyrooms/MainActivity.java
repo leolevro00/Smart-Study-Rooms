@@ -10,7 +10,10 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.ProgressBar;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -37,12 +40,14 @@ public class MainActivity extends AppCompatActivity {
 
     private TextView connectionMessage;
     private TextView recommendedRoomText;
+    private Spinner preferenceSpinner;
 
     private RoomViews room1Views;
     private RoomViews room2Views;
 
     private Room room1;
     private Room room2;
+    private RoomScoreCalculator.StudyPreference selectedPreference = RoomScoreCalculator.StudyPreference.BALANCED;
     private boolean room1NoiseAlertActive;
     private boolean room2NoiseAlertActive;
 
@@ -69,6 +74,7 @@ public class MainActivity extends AppCompatActivity {
     private void bindViews() {
         connectionMessage = findViewById(R.id.connectionMessage);
         recommendedRoomText = findViewById(R.id.recommendedRoomText);
+        preferenceSpinner = findViewById(R.id.preferenceSpinner);
 
         room1Views = new RoomViews(
                 findViewById(R.id.room1Card),
@@ -99,6 +105,38 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.room2Score),
                 findViewById(R.id.room2Status)
         );
+
+        setupPreferenceSpinner();
+    }
+
+    private void setupPreferenceSpinner() {
+        RoomScoreCalculator.StudyPreference[] preferences = RoomScoreCalculator.StudyPreference.values();
+        String[] labels = new String[preferences.length];
+        for (int i = 0; i < preferences.length; i++) {
+            labels[i] = preferences[i].getLabel();
+        }
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                labels
+        );
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        preferenceSpinner.setAdapter(adapter);
+        preferenceSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedPreference = preferences[position];
+                updateRoom(room1Views, room1, "Aula 1");
+                updateRoom(room2Views, room2, "Aula 2");
+                updateRecommendation();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                selectedPreference = RoomScoreCalculator.StudyPreference.BALANCED;
+            }
+        });
     }
 
     private void listenForRooms() {
@@ -148,7 +186,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        int score = RoomScoreCalculator.calculateScore(room);
+        int score = RoomScoreCalculator.calculateScore(room, selectedPreference);
         String status = RoomScoreCalculator.getStatus(score);
 
         views.name.setText(valueOrFallback(room.getName(), fallbackName));
@@ -197,8 +235,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        int room1Score = RoomScoreCalculator.calculateScore(room1);
-        int room2Score = RoomScoreCalculator.calculateScore(room2);
+        int room1Score = RoomScoreCalculator.calculateScore(room1, selectedPreference);
+        int room2Score = RoomScoreCalculator.calculateScore(room2, selectedPreference);
 
         if (room1Score == room2Score) {
             recommendedRoomText.setText("Aula consigliata: pari merito");
