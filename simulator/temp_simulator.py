@@ -1,3 +1,5 @@
+#file utilizzato per leggere i dati dal seriale di arduino. Ricordarsi di modificarlo una volta presi tutti i sensori e con due controllori funzionanti
+
 import argparse
 import json
 import random
