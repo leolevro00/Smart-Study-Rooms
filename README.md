@@ -429,3 +429,117 @@ history/room2/<pushId>   # misure storiche
 ```
 
 In questo modo l'app resta veloce per la schermata principale, ma puoi aggiungere grafici e analisi senza appesantire il nodo `rooms`.
+
+## Bridge software su PC
+
+Il progetto include un bridge locale in Python:
+
+[bridge/bridge_server.py](bridge/bridge_server.py)
+
+Il bridge riceve i dati dagli Arduino tramite HTTP, li valida, aggiunge un timestamp affidabile e li inoltra a Firebase. In questo modo Arduino non deve piu scrivere direttamente sul cloud.
+
+Architettura con bridge:
+
+```text
+Arduino -> Bridge Python sul PC -> Firebase -> Android
+```
+
+Il bridge scrive:
+
+```text
+rooms/<room_id>                 # stato corrente dell'aula
+history/<room_id>/<timestamp>   # copia storica della misura
+```
+
+### Perche introdurre il bridge
+
+Il bridge rende l'architettura piu simile a un sistema IoT reale:
+
+- Arduino invia dati a un gateway locale invece di parlare direttamente con Firebase.
+- Le credenziali Firebase possono restare sul PC/gateway.
+- I dati vengono validati prima di essere salvati.
+- Il bridge puo salvare serie temporali storiche.
+- In futuro lo stesso bridge puo ospitare notifiche avanzate, predizioni AI o logiche di controllo remoto.
+
+### Avvio del bridge
+
+Da terminale, nella root del progetto:
+
+```bash
+python3 bridge/bridge_server.py --database-host smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
+```
+
+Su Windows, se usi il launcher Python:
+
+```powershell
+py bridge\bridge_server.py --database-host smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
+```
+
+Il bridge parte sulla porta `3000`:
+
+```text
+http://0.0.0.0:3000
+```
+
+Per controllare che sia attivo:
+
+```text
+http://IP_DEL_PC:3000/health
+```
+
+### Configurare Arduino per usare il bridge
+
+Nel firmware Arduino lascia:
+
+```cpp
+#define USE_BRIDGE 1
+```
+
+Poi imposta l'indirizzo IP del PC su cui gira il bridge:
+
+```cpp
+const char* BRIDGE_HOST = "192.168.1.50";
+const int BRIDGE_PORT = 3000;
+```
+
+L'IP del PC si trova con:
+
+```powershell
+ipconfig
+```
+
+Arduino e PC devono essere nella stessa rete locale. In una versione reale, lo stesso bridge potrebbe essere eseguito su Raspberry Pi come gateway locale sempre acceso, oppure spostato su cloud per rimuovere il vincolo della stessa LAN.
+
+### Validazione dei dati
+
+Il bridge accetta solo payload con valori coerenti:
+
+- `temperature`: da `-10` a `50`
+- `humidity`: da `0` a `100`
+- `noise`: da `0` a `100`
+- `presence`: `true` oppure `false`
+
+Se un dato e fuori range, il bridge risponde con errore `400` e non aggiorna Firebase.
+
+### Test manuale del bridge
+
+Puoi inviare una misura finta senza Arduino:
+
+```bash
+curl -X POST http://localhost:3000/rooms/room1 \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Aula 1","temperature":22.4,"humidity":48,"noise":35,"presence":true}'
+```
+
+Se tutto funziona, Firebase viene aggiornato in:
+
+```text
+rooms/room1
+history/room1/<timestamp>
+```
+
+Per disattivare il salvataggio storico:
+
+```bash
+python3 bridge/bridge_server.py --database-host smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app --no-history
+```

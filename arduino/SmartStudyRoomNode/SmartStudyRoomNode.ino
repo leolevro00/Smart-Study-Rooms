@@ -1,9 +1,13 @@
-#include <WiFiS3.h>
+﻿#include <WiFiS3.h>
 #include <ArduinoHttpClient.h>
 #include <DHT.h>
 
-// Set 1 to test Firebase without physical sensors, 0 to read real sensors.
+// Set 1 to test Firebase/bridge without physical sensors, 0 to read real sensors.
 #define USE_SIMULATION 1
+
+// Set 1 to send readings to the local bridge running on a PC/Raspberry Pi.
+// Set 0 to send readings directly to Firebase.
+#define USE_BRIDGE 1
 
 // Room configuration. Change these values on the second node.
 const char* ROOM_ID = "room1";
@@ -13,7 +17,13 @@ const char* ROOM_NAME = "Aula 1";
 const char* WIFI_SSID = "YOUR_WIFI_SSID";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 
+// Local bridge configuration.
+// Use the IP address of the PC/Raspberry Pi running bridge/bridge_server.py.
+const char* BRIDGE_HOST = "192.168.1.50";
+const int BRIDGE_PORT = 3000;
+
 // Firebase Realtime Database host without "https://".
+// Used only when USE_BRIDGE is 0.
 // Example: smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
 const char* FIREBASE_HOST = "YOUR_PROJECT-default-rtdb.europe-west1.firebasedatabase.app";
 
@@ -31,8 +41,10 @@ const bool USE_PIR_SENSOR = true;
 const unsigned long SEND_INTERVAL_MS = 10000;
 
 DHT dht(DHT_PIN, DHT_TYPE);
-WiFiSSLClient wifiClient;
-HttpClient httpClient(wifiClient, FIREBASE_HOST, 443);
+WiFiClient bridgeClient;
+HttpClient bridgeHttpClient(bridgeClient, BRIDGE_HOST, BRIDGE_PORT);
+WiFiSSLClient firebaseClient;
+HttpClient firebaseHttpClient(firebaseClient, FIREBASE_HOST, 443);
 
 unsigned long lastSendMs = 0;
 
@@ -68,8 +80,8 @@ void loop() {
     lastSendMs = now;
 
     RoomReading reading = readRoom();
-    String payload = buildJsonPayload(reading);
-    sendToFirebase(payload);
+    String payload = buildJsonPayload(reading, USE_BRIDGE == 0);
+    sendReading(payload);
   }
 }
 
@@ -133,7 +145,7 @@ RoomReading simulateReading() {
   return reading;
 }
 
-String buildJsonPayload(RoomReading reading) {
+String buildJsonPayload(RoomReading reading, bool includeFirebaseTimestamp) {
   String json = "{";
   json += "\"name\":\"";
   json += ROOM_NAME;
@@ -149,11 +161,42 @@ String buildJsonPayload(RoomReading reading) {
   json += ",";
   json += "\"presence\":";
   json += (reading.presence ? "true" : "false");
-  json += ",";
-  json += "\"lastUpdate\":{\".sv\":\"timestamp\"}";
+  if (includeFirebaseTimestamp) {
+    json += ",";
+    json += "\"lastUpdate\":{\".sv\":\"timestamp\"}";
+  }
   json += "}";
 
   return json;
+}
+
+void sendReading(String payload) {
+#if USE_BRIDGE
+  sendToBridge(payload);
+#else
+  sendToFirebase(payload);
+#endif
+}
+
+void sendToBridge(String payload) {
+  String path = "/rooms/";
+  path += ROOM_ID;
+
+  Serial.print("POST bridge ");
+  Serial.println(path);
+  Serial.println(payload);
+
+  bridgeHttpClient.post(path, "application/json", payload);
+
+  int statusCode = bridgeHttpClient.responseStatusCode();
+  String response = bridgeHttpClient.responseBody();
+
+  Serial.print("Bridge status: ");
+  Serial.println(statusCode);
+  Serial.print("Bridge response: ");
+  Serial.println(response);
+
+  bridgeHttpClient.stop();
 }
 
 void sendToFirebase(String payload) {
@@ -166,19 +209,19 @@ void sendToFirebase(String payload) {
     path += FIREBASE_AUTH;
   }
 
-  Serial.print("PUT ");
+  Serial.print("PUT Firebase ");
   Serial.println(path);
   Serial.println(payload);
 
-  httpClient.put(path, "application/json", payload);
+  firebaseHttpClient.put(path, "application/json", payload);
 
-  int statusCode = httpClient.responseStatusCode();
-  String response = httpClient.responseBody();
+  int statusCode = firebaseHttpClient.responseStatusCode();
+  String response = firebaseHttpClient.responseBody();
 
   Serial.print("Firebase status: ");
   Serial.println(statusCode);
   Serial.print("Firebase response: ");
   Serial.println(response);
 
-  httpClient.stop();
+  firebaseHttpClient.stop();
 }
