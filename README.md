@@ -543,3 +543,149 @@ Per disattivare il salvataggio storico:
 ```bash
 python3 bridge/bridge_server.py --database-host smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app --no-history
 ```
+
+## Architettura reale con ESP32 e Arduino UNO seriale
+
+La configurazione hardware attuale usa due nodi diversi:
+
+```text
+Nodo Aula 1: ESP32 con Wi-Fi
+Nodo Aula 2: Arduino UNO senza Wi-Fi, collegato via USB seriale al PC
+```
+
+Il bridge sul PC diventa quindi un gateway multi-protocollo:
+
+```text
+ESP32 -> Wi-Fi HTTP -> Bridge Python -> Firebase -> Android
+Arduino UNO -> USB seriale -> serial_to_bridge.py -> Bridge Python -> Firebase -> Android
+```
+
+Questa architettura e utile perche unifica due sorgenti diverse:
+
+- il nodo ESP32 invia direttamente al bridge tramite rete Wi-Fi;
+- il nodo Arduino UNO invia righe JSON sulla seriale USB;
+- lo script `serial_to_bridge.py` legge la seriale e inoltra i dati al bridge;
+- il bridge valida, aggiunge timestamp, aggiorna `rooms/` e salva lo storico in `history/`.
+
+### Nodo ESP32 con Wi-Fi
+
+Lo sketch si trova in:
+
+```text
+esp32/SmartStudyRoomEsp32Node/SmartStudyRoomEsp32Node.ino
+```
+
+Configurazione principale:
+
+```cpp
+const char* ROOM_ID = "room1";
+const char* ROOM_NAME = "Aula 1";
+
+const char* WIFI_SSID = "YOUR_WIFI_SSID";
+const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+
+const char* BRIDGE_HOST = "192.168.1.50";
+const int BRIDGE_PORT = 3000;
+```
+
+Il valore `BRIDGE_HOST` deve essere l'indirizzo IP del PC su cui gira il bridge. Lo trovi con:
+
+```powershell
+ipconfig
+```
+
+Per testare senza sensori:
+
+```cpp
+#define USE_SIMULATION 1
+```
+
+Quando colleghi i sensori reali:
+
+```cpp
+#define USE_SIMULATION 0
+```
+
+### Nodo Arduino UNO senza Wi-Fi
+
+Lo sketch si trova in:
+
+```text
+arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode.ino
+```
+
+Arduino UNO non invia dati via rete. Stampa invece una riga JSON sulla seriale ogni 10 secondi:
+
+```json
+{"name":"Aula 2","temperature":22.4,"humidity":48.0,"noise":35,"presence":true}
+```
+
+Il PC legge questa riga e la inoltra al bridge.
+
+Per testare senza sensori:
+
+```cpp
+#define USE_SIMULATION 1
+```
+
+Quando colleghi i sensori reali:
+
+```cpp
+#define USE_SIMULATION 0
+```
+
+### Script seriale PC -> bridge
+
+Installa la dipendenza Python:
+
+```powershell
+py -m pip install -r bridge\requirements.txt
+```
+
+Avvia prima il bridge:
+
+```powershell
+py bridge\bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
+```
+
+Poi, in un secondo terminale, avvia il forwarder seriale indicando la porta dell'Arduino UNO:
+
+```powershell
+py bridge\serial_to_bridge.py --port COM3 --room-id room2 --bridge-url http://localhost:3000
+```
+
+La porta `COM3` e solo un esempio. In Arduino IDE la trovi in:
+
+```text
+Tools > Port
+```
+
+Su Linux/WSL potrebbe essere qualcosa come:
+
+```bash
+python3 bridge/serial_to_bridge.py --port /dev/ttyACM0 --room-id room2 --bridge-url http://localhost:3000
+```
+
+### Ordine di avvio consigliato
+
+1. Avvia Firebase Realtime Database.
+2. Avvia il bridge Python sul PC.
+3. Collega Arduino UNO via USB e avvia `serial_to_bridge.py`.
+4. Accendi/carica lo sketch ESP32.
+5. Apri l'app Android.
+6. Controlla che Firebase riceva:
+
+```text
+rooms/room1  # ESP32 Wi-Fi
+rooms/room2  # Arduino UNO via seriale
+history/room1/<timestamp>
+history/room2/<timestamp>
+```
+
+### Come presentarla
+
+Questa versione puo essere descritta cosi:
+
+```text
+Il bridge software svolge il ruolo di gateway multi-protocollo: riceve dati via HTTP dal nodo ESP32 e via seriale dal nodo Arduino UNO, valida le misure e sincronizza i digital twin delle aule su Firebase.
+```
