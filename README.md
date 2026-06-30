@@ -1,53 +1,110 @@
-# Smart Study Rooms
+﻿# Smart Study Rooms
 
-Smart Study Rooms e un progetto universitario IoT per monitorare in tempo reale due aule studio e suggerire quale sia la piu adatta allo studio in base a temperatura, umidita, rumore e presenza.
+Smart Study Rooms e un progetto universitario IoT per monitorare in tempo reale due aule studio e suggerire quale aula sia piu adatta allo studio in base a temperatura, umidita, rumore e presenza.
 
-## Obiettivo
+Il progetto include:
 
-Il sistema raccoglie dati ambientali da due nodi IoT indipendenti, li invia a Firebase Realtime Database e li mostra in un'app Android nativa scritta in Java. L'app calcola uno score da 0 a 100 per ogni aula e indica automaticamente l'aula consigliata.
+- un nodo ESP32 con Wi-Fi;
+- un nodo Arduino UNO senza Wi-Fi, collegato al PC via USB seriale;
+- un bridge Python eseguito sul PC;
+- Firebase Realtime Database;
+- un'app Android nativa in Java/XML;
+- calcolo score e preferenze utente;
+- notifiche locali quando un'aula diventa troppo rumorosa;
+- storico dati su Firebase tramite bridge.
 
-## Architettura
+## Architettura del progetto
 
-Flusso generale:
+L'architettura reale del progetto e questa:
 
 ```text
-Sensori -> Microcontrollore -> Wi-Fi -> Firebase Realtime Database -> App Android
+Nodo Aula 1
+ESP32 + sensori
+        |
+        | HTTP Wi-Fi
+        v
+Bridge Python sul PC
+        |
+        | REST API Firebase
+        v
+Firebase Realtime Database
+        |
+        | SDK Firebase Android
+        v
+App Android
 ```
 
-Ogni aula ha un nodo IoT separato:
+```text
+Nodo Aula 2
+Arduino UNO + sensori
+        |
+        | USB seriale
+        v
+serial_to_bridge.py sul PC
+        |
+        | HTTP locale
+        v
+Bridge Python sul PC
+        |
+        | REST API Firebase
+        v
+Firebase Realtime Database
+        |
+        | SDK Firebase Android
+        v
+App Android
+```
 
-- Nodo Aula 1: Arduino UNO R4 WiFi, DHT11/DHT22, sensore rumore analogico KY-037/KY-038, PIR opzionale.
-- Nodo Aula 2: Arduino UNO R4 WiFi o ESP32 con gli stessi sensori.
+In modo compatto:
 
-Il firmware aggiorna solo il proprio nodo Firebase:
+```text
+ESP32 -> Wi-Fi HTTP -> Bridge Python -> Firebase -> Android
+Arduino UNO -> USB seriale -> serial_to_bridge.py -> Bridge Python -> Firebase -> Android
+```
 
-- `rooms/room1`
-- `rooms/room2`
+Il bridge e il punto centrale del sistema. Riceve dati da sorgenti diverse, li valida, aggiunge un timestamp affidabile e aggiorna Firebase.
 
-Lo score viene calcolato lato Android, cosi il microcontrollore resta semplice e si occupa solo di leggere e inviare dati.
+## Perche esiste il bridge
 
-## Struttura del progetto
+Il bridge software simula un gateway IoT locale.
+
+Serve a:
+
+- evitare che ogni microcontrollore debba parlare direttamente con Firebase;
+- validare i dati prima di salvarli;
+- aggiungere `lastUpdate` lato PC/gateway;
+- salvare sia lo stato corrente sia lo storico;
+- unificare nodi diversi, cioe ESP32 via Wi-Fi e Arduino UNO via seriale;
+- preparare il progetto a sviluppi futuri come AI, notifiche cloud o controllo remoto.
+
+In una versione reale, il bridge potrebbe girare su Raspberry Pi, server locale o cloud. In questo prototipo gira su PC.
+
+## Struttura cartelle
 
 ```text
 .
 ├── android/                         # App Android Java/XML
+│   ├── app/
+│   │   ├── google-services.json.example
+│   │   └── src/main/
+│   │       ├── AndroidManifest.xml
+│   │       ├── java/com/example/smartstudyrooms/
+│   │       │   ├── MainActivity.java
+│   │       │   ├── Room.java
+│   │       │   └── RoomScoreCalculator.java
+│   │       └── res/
 │   ├── build.gradle
-│   ├── settings.gradle
-│   └── app/
-│       ├── build.gradle
-│       ├── google-services.json.example
-│       └── src/main/
-│           ├── AndroidManifest.xml
-│           ├── java/com/example/smartstudyrooms/
-│           │   ├── MainActivity.java
-│           │   ├── Room.java
-│           │   └── RoomScoreCalculator.java
-│           └── res/
-│               ├── drawable/
-│               ├── layout/activity_main.xml
-│               └── values/
+│   ├── gradle.properties
+│   └── settings.gradle
 ├── arduino/
-│   └── SmartStudyRoomNode/SmartStudyRoomNode.ino
+│   ├── SmartStudyRoomNode/           # Vecchio sketch Arduino Wi-Fi/direct/bridge
+│   └── SmartStudyRoomSerialNode/     # Sketch Arduino UNO senza Wi-Fi
+├── bridge/
+│   ├── bridge_server.py              # Bridge HTTP -> Firebase
+│   ├── serial_to_bridge.py           # Lettura seriale Arduino UNO -> bridge
+│   └── requirements.txt              # Dipendenza pyserial
+├── esp32/
+│   └── SmartStudyRoomEsp32Node/      # Sketch ESP32 Wi-Fi -> bridge
 ├── firebase/
 │   ├── database.rules.json
 │   └── sample-data.json
@@ -55,9 +112,49 @@ Lo score viene calcolato lato Android, cosi il microcontrollore resta semplice e
     └── firebase_simulator.py
 ```
 
-## Firebase Realtime Database
+## Componenti hardware
 
-La struttura consigliata del database e:
+### Aula 1
+
+Nodo consigliato:
+
+- ESP32 con Wi-Fi;
+- sensore temperatura/umidita DHT11 o DHT22;
+- sensore rumore analogico KY-037/KY-038 o simile;
+- sensore PIR opzionale.
+
+Sketch:
+
+```text
+esp32/SmartStudyRoomEsp32Node/SmartStudyRoomEsp32Node.ino
+```
+
+### Aula 2
+
+Nodo disponibile:
+
+- Arduino UNO senza modulo Wi-Fi;
+- sensore temperatura/umidita DHT11 o DHT22;
+- sensore rumore analogico KY-037/KY-038 o simile;
+- sensore PIR opzionale;
+- collegamento USB al PC.
+
+Sketch:
+
+```text
+arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode.ino
+```
+
+## Struttura Firebase
+
+Il bridge aggiorna lo stato corrente delle aule in:
+
+```text
+rooms/room1
+rooms/room2
+```
+
+Esempio:
 
 ```json
 {
@@ -68,7 +165,8 @@ La struttura consigliata del database e:
       "humidity": 48,
       "noise": 35,
       "presence": true,
-      "lastUpdate": 1710000000000
+      "lastUpdate": 1710000000000,
+      "source": "bridge"
     },
     "room2": {
       "name": "Aula 2",
@@ -76,17 +174,43 @@ La struttura consigliata del database e:
       "humidity": 52,
       "noise": 61,
       "presence": false,
-      "lastUpdate": 1710000000000
+      "lastUpdate": 1710000000000,
+      "source": "bridge"
     }
   }
 }
 ```
 
-Nota: `lastUpdate` e gestito come timestamp Unix in millisecondi. Il firmware Arduino usa il server timestamp di Firebase con `{ ".sv": "timestamp" }`, quindi non serve sincronizzare un orologio sul microcontrollore.
+Il bridge salva anche uno storico:
 
-### Regole temporanee
+```text
+history/room1/<timestamp>
+history/room2/<timestamp>
+```
 
-Durante il prototipo puoi usare le regole in [firebase/database.rules.json](firebase/database.rules.json):
+Esempio:
+
+```json
+{
+  "history": {
+    "room1": {
+      "1710000000000": {
+        "name": "Aula 1",
+        "temperature": 22.4,
+        "humidity": 48,
+        "noise": 35,
+        "presence": true,
+        "lastUpdate": 1710000000000,
+        "source": "bridge"
+      }
+    }
+  }
+}
+```
+
+## Regole Firebase per prototipo
+
+Per test iniziale puoi usare:
 
 ```json
 {
@@ -97,433 +221,148 @@ Durante il prototipo puoi usare le regole in [firebase/database.rules.json](fire
 }
 ```
 
-Queste regole sono solo per test. Non sono sicure per produzione perche permettono lettura e scrittura pubblica a chiunque conosca l'URL del database.
+Le trovi in:
+
+```text
+firebase/database.rules.json
+```
+
+Attenzione: queste regole sono solo per test. Non sono sicure in produzione, perche chiunque conosca l'URL del database potrebbe leggere o scrivere dati.
 
 ## Configurare Firebase
 
-1. Vai su [Firebase Console](https://console.firebase.google.com/).
-2. Crea un nuovo progetto.
-3. Aggiungi un'app Android con package name:
-   `com.example.smartstudyrooms`
-4. Scarica il file `google-services.json`.
-5. Copialo in:
-   `android/app/google-services.json`
-6. Crea un Realtime Database.
-7. Imposta temporaneamente le regole di test presenti in `firebase/database.rules.json`.
+1. Vai su Firebase Console.
+2. Crea un progetto.
+3. Crea un Realtime Database.
+4. Imposta temporaneamente le regole di test.
+5. Aggiungi un'app Android con package name:
+
+```text
+com.example.smartstudyrooms
+```
+
+6. Scarica `google-services.json`.
+7. Copialo in:
+
+```text
+android/app/google-services.json
+```
+
 8. Prendi nota dell'host del database, ad esempio:
-   `smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app`
 
-## App Android
-
-L'app Android usa:
-
-- Java
-- XML layout
-- Firebase Realtime Database SDK
-- Due card, una per aula
-- Aggiornamento realtime tramite `ValueEventListener`
-- Calcolo dello score lato app
-- Barre visuali per temperatura, umidita e rumore
-- Notifiche locali quando il rumore di un'aula supera `70/100`
-- Preferenze di studio che modificano i pesi dello score
-- Gestione dati mancanti ed errori di connessione
-
-Classi principali:
-
-- `MainActivity.java`: legge `rooms` da Firebase, aggiorna la UI e confronta le aule.
-- `Room.java`: modello dati compatibile con Firebase.
-- `RoomScoreCalculator.java`: calcola score, stato testuale e descrizione del rumore.
-
-Su Android 13 o superiore l'app chiede il permesso notifiche al primo avvio. Le notifiche rumore vengono inviate quando un'aula supera `70/100`; l'avviso viene riattivato solo dopo che il rumore scende almeno sotto `60/100`, per evitare notifiche ripetute.
-
-La tendina "Preferenza di studio" permette di cambiare il criterio di valutazione:
-
-- `Bilanciata`: pesi standard.
-- `Priorita silenzio`: il rumore pesa di piu nello score.
-- `Priorita comfort`: temperatura e umidita diventano piu importanti.
-- `Priorita aula libera`: la presenza pesa di piu per preferire aule probabilmente meno occupate.
-
-Per aprire l'app:
-
-1. Apri la cartella `android/` con Android Studio.
-2. Inserisci `google-services.json` in `android/app/`.
-3. Sincronizza Gradle.
-4. Esegui l'app su emulatore o dispositivo fisico.
-
-## Logica dello score
-
-Lo score massimo e 100:
-
-- Temperatura: max 35 punti
-- Rumore: max 35 punti
-- Umidita: max 20 punti
-- Presenza: max 10 punti
-
-Classificazione:
-
-- `score >= 80`: Consigliata
-- `score >= 60`: Accettabile
-- `score >= 40`: Poco adatta
-- `score < 40`: Sconsigliata
-
-La presenza ha un peso leggero: un'aula senza presenza rilevata riceve un piccolo bonus perche potrebbe essere piu libera.
-
-## Firmware Arduino
-
-Il firmware si trova in:
-
-[arduino/SmartStudyRoomNode/SmartStudyRoomNode.ino](arduino/SmartStudyRoomNode/SmartStudyRoomNode.ino)
-
-Funzioni principali:
-
-- Connessione Wi-Fi
-- Lettura DHT11/DHT22
-- Lettura sensore rumore analogico
-- Lettura PIR opzionale
-- Creazione JSON
-- Invio HTTP `PUT` a Firebase Realtime Database
-- Invio periodico ogni 10 secondi
-- Modalita simulazione integrata
-
-Per duplicare il nodo:
-
-```cpp
-const char* ROOM_ID = "room1";
-const char* ROOM_NAME = "Aula 1";
+```text
+smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
 ```
 
-Per il secondo nodo basta cambiare:
+Questo host serve per avviare il bridge.
 
-```cpp
-const char* ROOM_ID = "room2";
-const char* ROOM_NAME = "Aula 2";
+## Installazione software sul PC
+
+Servono:
+
+- Python 3;
+- Arduino IDE;
+- Android Studio;
+- eventuale driver USB per Arduino/ESP32;
+- librerie Arduino per DHT e, per ESP32, supporto scheda ESP32.
+
+### Installare dipendenze Python
+
+Da terminale nella root del progetto:
+
+```powershell
+py -m pip install -r bridge\requirements.txt
 ```
 
-### Librerie Arduino
+Su Linux/macOS:
 
-Installa dall'Arduino IDE Library Manager:
-
-- `WiFiS3`
-- `ArduinoHttpClient`
-- `DHT sensor library` di Adafruit
-- `Adafruit Unified Sensor`
-
-Poi configura nel file `.ino`:
-
-- `WIFI_SSID`
-- `WIFI_PASSWORD`
-- `FIREBASE_HOST`
-- `ROOM_ID`
-- `ROOM_NAME`
-- `DHT_TYPE`
-- pin dei sensori
-
-### Come testare il codice Arduino
-
-1. Installa Arduino IDE da [arduino.cc](https://www.arduino.cc/en/software).
-
-2. Installa il supporto per Arduino UNO R4 WiFi:
-
-   ```text
-   Tools > Board > Boards Manager
-   ```
-
-   Cerca e installa:
-
-   ```text
-   Arduino UNO R4 Boards
-   ```
-
-   Poi seleziona:
-
-   ```text
-   Tools > Board > Arduino UNO R4 WiFi
-   ```
-
-3. Installa le librerie da:
-
-   ```text
-   Tools > Manage Libraries
-   ```
-
-   Librerie da installare:
-
-   ```text
-   WiFiS3
-   ArduinoHttpClient
-   DHT sensor library
-   Adafruit Unified Sensor
-   ```
-
-   `WiFiS3` di solito e gia inclusa con il pacchetto della scheda, ma va verificato.
-
-4. Apri lo sketch:
-
-   ```text
-   arduino/SmartStudyRoomNode/SmartStudyRoomNode.ino
-   ```
-
-5. Configura Wi-Fi e Firebase modificando queste costanti:
-
-   ```cpp
-   const char* ROOM_ID = "room1";
-   const char* ROOM_NAME = "Aula 1";
-
-   const char* WIFI_SSID = "YOUR_WIFI_SSID";
-   const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
-
-   const char* FIREBASE_HOST = "YOUR_PROJECT-default-rtdb.europe-west1.firebasedatabase.app";
-   ```
-
-   Esempio:
-
-   ```cpp
-   const char* ROOM_ID = "room1";
-   const char* ROOM_NAME = "Aula 1";
-
-   const char* WIFI_SSID = "CasaMia";
-   const char* WIFI_PASSWORD = "passwordwifi123";
-
-   const char* FIREBASE_HOST = "smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app";
-   ```
-
-   `FIREBASE_HOST` deve essere scritto senza `https://` e senza `/` finale.
-
-   Corretto:
-
-   ```cpp
-   const char* FIREBASE_HOST = "smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app";
-   ```
-
-   Sbagliato:
-
-   ```cpp
-   const char* FIREBASE_HOST = "https://smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app/";
-   ```
-
-6. Per il primo test senza sensori lascia attiva la simulazione:
-
-   ```cpp
-   #define USE_SIMULATION 1
-   ```
-
-   In questo modo Arduino genera dati finti realistici e li invia a Firebase. Quando collegherai i sensori veri, imposta:
-
-   ```cpp
-   #define USE_SIMULATION 0
-   ```
-
-7. Collega Arduino UNO R4 WiFi al PC con USB.
-
-8. Seleziona la porta:
-
-   ```text
-   Tools > Port
-   ```
-
-9. Premi il pulsante Upload, cioe la freccia verso destra.
-
-10. Apri il Serial Monitor:
-
-    ```text
-    Tools > Serial Monitor
-    ```
-
-    Imposta la velocita a:
-
-    ```text
-    115200 baud
-    ```
-
-    Se tutto funziona dovresti vedere messaggi simili:
-
-    ```text
-    Connecting to Wi-Fi: ...
-    Connected. IP address: ...
-    PUT /rooms/room1.json
-    Firebase status: 200
-    ```
-
-    Uno status `200` indica che Firebase ha ricevuto correttamente i dati.
-
-11. Controlla Firebase Console > Realtime Database. Dovresti vedere:
-
-    ```text
-    rooms
-      room1
-        name: "Aula 1"
-        temperature: ...
-        humidity: ...
-        noise: ...
-        presence: ...
-        lastUpdate: ...
-    ```
-
-12. Per il secondo nodo usa lo stesso sketch cambiando solo:
-
-    ```cpp
-    const char* ROOM_ID = "room2";
-    const char* ROOM_NAME = "Aula 2";
-    ```
-
-    Poi carica il codice sul secondo microcontrollore.
-
-## Simulazione senza hardware
-
-Hai due opzioni.
-
-### 1. Simulazione nel firmware Arduino
-
-Nel file `.ino` lascia:
-
-```cpp
-#define USE_SIMULATION 1
+```bash
+python3 -m pip install -r bridge/requirements.txt
 ```
 
-Il nodo generera dati realistici:
+`requirements.txt` installa `pyserial`, usato per leggere la seriale dell'Arduino UNO.
 
-- temperatura tra 19 e 27 gradi
-- umidita tra 35 e 70%
-- rumore tra 20 e 80
-- presenza casuale
+## Avvio completo del sistema
 
-Quando avrai i sensori, imposta:
+L'ordine consigliato e:
 
-```cpp
-#define USE_SIMULATION 0
+1. Avvia Firebase Realtime Database.
+2. Avvia il bridge Python sul PC.
+3. Collega Arduino UNO via USB.
+4. Avvia lo script `serial_to_bridge.py` per Arduino UNO.
+5. Accendi o carica lo sketch ESP32.
+6. Apri l'app Android.
+7. Controlla Firebase.
+
+## 1. Avviare il bridge Python
+
+Da terminale nella root del progetto:
+
+```powershell
+py bridge\bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
 ```
-
-### 2. Simulatore Python
-
-Lo script [simulator/firebase_simulator.py](simulator/firebase_simulator.py) invia dati finti per `room1` e `room2` direttamente a Firebase usando l'API REST.
 
 Esempio:
-
-```bash
-python simulator/firebase_simulator.py --database-host smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
-```
-
-Per fermarlo usa `CTRL+C`.
-
-## Possibili sviluppi futuri
-
-- Aggiunta di piu aule.
-- Storico dei dati ambientali.
-- Grafici temporali nell'app.
-- Notifiche quando un'aula diventa rumorosa.
-- Autenticazione utenti Firebase.
-- Prenotazione aula.
-- Dashboard web per amministratori.
-- Sensori CO2 o qualita dell'aria.
-- Machine learning per prevedere occupazione o comfort.
-
-## Note architetturali
-
-Per un prototipo universitario, Firebase Realtime Database e una scelta semplice e veloce per aggiornamenti realtime. Se il progetto crescesse, una buona evoluzione sarebbe separare i dati correnti dallo storico:
-
-```text
-rooms/room1              # stato corrente
-rooms/room2              # stato corrente
-history/room1/<pushId>   # misure storiche
-history/room2/<pushId>   # misure storiche
-```
-
-In questo modo l'app resta veloce per la schermata principale, ma puoi aggiungere grafici e analisi senza appesantire il nodo `rooms`.
-
-## Bridge software su PC
-
-Il progetto include un bridge locale in Python:
-
-[bridge/bridge_server.py](bridge/bridge_server.py)
-
-Il bridge riceve i dati dagli Arduino tramite HTTP, li valida, aggiunge un timestamp affidabile e li inoltra a Firebase. In questo modo Arduino non deve piu scrivere direttamente sul cloud.
-
-Architettura con bridge:
-
-```text
-Arduino -> Bridge Python sul PC -> Firebase -> Android
-```
-
-Il bridge scrive:
-
-```text
-rooms/<room_id>                 # stato corrente dell'aula
-history/<room_id>/<timestamp>   # copia storica della misura
-```
-
-### Perche introdurre il bridge
-
-Il bridge rende l'architettura piu simile a un sistema IoT reale:
-
-- Arduino invia dati a un gateway locale invece di parlare direttamente con Firebase.
-- Le credenziali Firebase possono restare sul PC/gateway.
-- I dati vengono validati prima di essere salvati.
-- Il bridge puo salvare serie temporali storiche.
-- In futuro lo stesso bridge puo ospitare notifiche avanzate, predizioni AI o logiche di controllo remoto.
-
-### Avvio del bridge
-
-Da terminale, nella root del progetto:
-
-```bash
-python3 bridge/bridge_server.py --database-host smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
-```
-
-Su Windows, se usi il launcher Python:
 
 ```powershell
 py bridge\bridge_server.py --database-host smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
 ```
 
-Il bridge parte sulla porta `3000`:
+Su Linux/macOS:
+
+```bash
+python3 bridge/bridge_server.py --database-host smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
+```
+
+Se parte correttamente vedrai qualcosa del tipo:
 
 ```text
-http://0.0.0.0:3000
+Smart Study Rooms bridge started
+Listening on http://0.0.0.0:3000
+Firebase: https://smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
+History enabled: True
+Press CTRL+C to stop
 ```
 
-Per controllare che sia attivo:
+Il bridge resta in ascolto su:
 
 ```text
-http://IP_DEL_PC:3000/health
+http://localhost:3000
 ```
 
-### Configurare Arduino per usare il bridge
+oppure, dalla rete locale:
 
-Nel firmware Arduino lascia:
-
-```cpp
-#define USE_BRIDGE 1
+```text
+http://IP_DEL_PC:3000
 ```
 
-Poi imposta l'indirizzo IP del PC su cui gira il bridge:
+### Test health del bridge
 
-```cpp
-const char* BRIDGE_HOST = "192.168.1.50";
-const int BRIDGE_PORT = 3000;
+Apri nel browser:
+
+```text
+http://localhost:3000/health
 ```
 
-L'IP del PC si trova con:
+Dovresti vedere:
+
+```json
+{"status":"ok","service":"smart-study-rooms-bridge"}
+```
+
+Se Arduino o ESP32 non riescono a contattare il bridge, controlla anche Windows Firewall. Se compare una richiesta di autorizzazione per Python, consenti l'accesso sulla rete privata.
+
+## 2. Test manuale del bridge senza hardware
+
+Puoi inviare dati finti al bridge con curl:
 
 ```powershell
-ipconfig
+curl -X POST http://localhost:3000/rooms/room1 `
+  -H "Content-Type: application/json" `
+  -d '{"name":"Aula 1","temperature":22.4,"humidity":48,"noise":35,"presence":true}'
 ```
 
-Arduino e PC devono essere nella stessa rete locale. In una versione reale, lo stesso bridge potrebbe essere eseguito su Raspberry Pi come gateway locale sempre acceso, oppure spostato su cloud per rimuovere il vincolo della stessa LAN.
-
-### Validazione dei dati
-
-Il bridge accetta solo payload con valori coerenti:
-
-- `temperature`: da `-10` a `50`
-- `humidity`: da `0` a `100`
-- `noise`: da `0` a `100`
-- `presence`: `true` oppure `false`
-
-Se un dato e fuori range, il bridge risponde con errore `400` e non aggiorna Firebase.
-
-### Test manuale del bridge
-
-Puoi inviare una misura finta senza Arduino:
+Su Linux/macOS:
 
 ```bash
 curl -X POST http://localhost:3000/rooms/room1 \
@@ -531,51 +370,36 @@ curl -X POST http://localhost:3000/rooms/room1 \
   -d '{"name":"Aula 1","temperature":22.4,"humidity":48,"noise":35,"presence":true}'
 ```
 
-Se tutto funziona, Firebase viene aggiornato in:
+Se funziona, Firebase mostrera:
 
 ```text
 rooms/room1
 history/room1/<timestamp>
 ```
 
-Per disattivare il salvataggio storico:
+## 3. Configurare ESP32
 
-```bash
-python3 bridge/bridge_server.py --database-host smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app --no-history
-```
-
-## Architettura reale con ESP32 e Arduino UNO seriale
-
-La configurazione hardware attuale usa due nodi diversi:
+Apri Arduino IDE e installa il supporto ESP32:
 
 ```text
-Nodo Aula 1: ESP32 con Wi-Fi
-Nodo Aula 2: Arduino UNO senza Wi-Fi, collegato via USB seriale al PC
+Tools > Board > Boards Manager
 ```
 
-Il bridge sul PC diventa quindi un gateway multi-protocollo:
+Cerca:
 
 ```text
-ESP32 -> Wi-Fi HTTP -> Bridge Python -> Firebase -> Android
-Arduino UNO -> USB seriale -> serial_to_bridge.py -> Bridge Python -> Firebase -> Android
+esp32
 ```
 
-Questa architettura e utile perche unifica due sorgenti diverse:
+Installa il pacchetto ESP32 by Espressif Systems.
 
-- il nodo ESP32 invia direttamente al bridge tramite rete Wi-Fi;
-- il nodo Arduino UNO invia righe JSON sulla seriale USB;
-- lo script `serial_to_bridge.py` legge la seriale e inoltra i dati al bridge;
-- il bridge valida, aggiunge timestamp, aggiorna `rooms/` e salva lo storico in `history/`.
-
-### Nodo ESP32 con Wi-Fi
-
-Lo sketch si trova in:
+Apri lo sketch:
 
 ```text
 esp32/SmartStudyRoomEsp32Node/SmartStudyRoomEsp32Node.ino
 ```
 
-Configurazione principale:
+Configura:
 
 ```cpp
 const char* ROOM_ID = "room1";
@@ -588,104 +412,359 @@ const char* BRIDGE_HOST = "192.168.1.50";
 const int BRIDGE_PORT = 3000;
 ```
 
-Il valore `BRIDGE_HOST` deve essere l'indirizzo IP del PC su cui gira il bridge. Lo trovi con:
+`BRIDGE_HOST` deve essere l'IP del PC su cui gira il bridge.
+
+Su Windows lo trovi con:
 
 ```powershell
 ipconfig
 ```
 
-Per testare senza sensori:
+Cerca l'indirizzo IPv4 della scheda Wi-Fi, ad esempio:
+
+```text
+192.168.1.50
+```
+
+Per il primo test lascia:
 
 ```cpp
 #define USE_SIMULATION 1
 ```
 
-Quando colleghi i sensori reali:
+Cosi l'ESP32 genera dati finti senza sensori.
+
+Quando userai i sensori reali:
 
 ```cpp
 #define USE_SIMULATION 0
 ```
 
-### Nodo Arduino UNO senza Wi-Fi
+Carica lo sketch sull'ESP32 e apri il Serial Monitor a:
 
-Lo sketch si trova in:
+```text
+115200 baud
+```
+
+Se funziona vedrai messaggi simili:
+
+```text
+Connected. IP address: ...
+POST bridge http://192.168.1.50:3000/rooms/room1
+Bridge status: 200
+```
+
+## 4. Configurare Arduino UNO senza Wi-Fi
+
+Apri lo sketch:
 
 ```text
 arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode.ino
 ```
 
-Arduino UNO non invia dati via rete. Stampa invece una riga JSON sulla seriale ogni 10 secondi:
-
-```json
-{"name":"Aula 2","temperature":22.4,"humidity":48.0,"noise":35,"presence":true}
-```
-
-Il PC legge questa riga e la inoltra al bridge.
-
-Per testare senza sensori:
+Per il primo test lascia:
 
 ```cpp
 #define USE_SIMULATION 1
 ```
 
-Quando colleghi i sensori reali:
+Cosi Arduino genera dati finti senza sensori.
+
+Quando userai i sensori reali:
 
 ```cpp
 #define USE_SIMULATION 0
 ```
 
-### Script seriale PC -> bridge
+Configura il nome aula se necessario:
 
-Installa la dipendenza Python:
-
-```powershell
-py -m pip install -r bridge\requirements.txt
+```cpp
+const char* ROOM_NAME = "Aula 2";
 ```
 
-Avvia prima il bridge:
+Carica lo sketch su Arduino UNO.
 
-```powershell
-py bridge\bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
+Apri il Serial Monitor a:
+
+```text
+115200 baud
 ```
 
-Poi, in un secondo terminale, avvia il forwarder seriale indicando la porta dell'Arduino UNO:
+Dovresti vedere una riga JSON ogni 10 secondi:
+
+```json
+{"name":"Aula 2","temperature":22.4,"humidity":48.0,"noise":35,"presence":true}
+```
+
+Questa riga non va direttamente a Firebase. Viene letta dallo script `serial_to_bridge.py`.
+
+## 5. Avviare serial_to_bridge.py
+
+Lascia il bridge acceso nel primo terminale.
+
+In un secondo terminale avvia:
 
 ```powershell
 py bridge\serial_to_bridge.py --port COM3 --room-id room2 --bridge-url http://localhost:3000
 ```
 
-La porta `COM3` e solo un esempio. In Arduino IDE la trovi in:
+`COM3` e solo un esempio. La porta corretta la trovi in Arduino IDE:
 
 ```text
 Tools > Port
 ```
 
-Su Linux/WSL potrebbe essere qualcosa come:
+Esempi comuni:
+
+```text
+COM3
+COM4
+COM5
+```
+
+Su Linux/macOS potrebbe essere:
 
 ```bash
 python3 bridge/serial_to_bridge.py --port /dev/ttyACM0 --room-id room2 --bridge-url http://localhost:3000
 ```
 
-### Ordine di avvio consigliato
-
-1. Avvia Firebase Realtime Database.
-2. Avvia il bridge Python sul PC.
-3. Collega Arduino UNO via USB e avvia `serial_to_bridge.py`.
-4. Accendi/carica lo sketch ESP32.
-5. Apri l'app Android.
-6. Controlla che Firebase riceva:
+Se funziona vedrai:
 
 ```text
-rooms/room1  # ESP32 Wi-Fi
-rooms/room2  # Arduino UNO via seriale
-history/room1/<timestamp>
+Arduino serial forwarder started
+Serial <- {"name":"Aula 2",...}
+Bridge -> HTTP 200: {...}
+```
+
+Firebase verra aggiornato in:
+
+```text
+rooms/room2
 history/room2/<timestamp>
 ```
 
-### Come presentarla
+## 6. Avviare l'app Android
 
-Questa versione puo essere descritta cosi:
+Apri Android Studio e seleziona la cartella Android del progetto.
+
+Se lavori su Windows, conviene usare una copia locale tipo:
 
 ```text
-Il bridge software svolge il ruolo di gateway multi-protocollo: riceve dati via HTTP dal nodo ESP32 e via seriale dal nodo Arduino UNO, valida le misure e sincronizza i digital twin delle aule su Firebase.
+C:\Users\leonardo.levrini\Documents\SmartStudyRoomsAndroid
+```
+
+Non e consigliato aprire direttamente:
+
+```text
+\\wsl.localhost\Ubuntu\...
+```
+
+perche Android Studio e Gradle possono essere lenti o instabili su percorsi WSL/UNC.
+
+Controlla che esista:
+
+```text
+android/app/google-services.json
+```
+
+Poi fai:
+
+```text
+Sync Gradle
+Run app
+```
+
+L'app legge da Firebase:
+
+```text
+rooms/room1
+rooms/room2
+```
+
+e mostra:
+
+- nome aula;
+- temperatura;
+- umidita;
+- rumore;
+- presenza;
+- ultimo aggiornamento;
+- score;
+- stato;
+- aula consigliata;
+- barre visuali;
+- preferenza di studio;
+- notifiche rumore alto.
+
+## Score dell'aula
+
+Lo score e calcolato lato Android, non su Arduino.
+
+Componenti principali:
+
+- temperatura;
+- rumore;
+- umidita;
+- presenza.
+
+Classificazione:
+
+```text
+score >= 80       -> Consigliata
+score >= 60       -> Accettabile
+score >= 40       -> Poco adatta
+score < 40        -> Sconsigliata
+```
+
+L'utente puo cambiare preferenza di studio:
+
+- `Bilanciata`;
+- `Priorita silenzio`;
+- `Priorita comfort`;
+- `Priorita aula libera`.
+
+La preferenza modifica i pesi dello score.
+
+## Notifiche Android
+
+L'app puo inviare notifiche locali quando il rumore supera la soglia:
+
+```text
+noise >= 70
+```
+
+L'avviso viene riattivato solo quando il rumore scende sotto:
+
+```text
+noise <= 60
+```
+
+Questo evita notifiche ripetute continue.
+
+Su Android 13 o superiore l'app chiede il permesso notifiche al primo avvio.
+
+## Validazione dati nel bridge
+
+Il bridge accetta solo dati coerenti:
+
+```text
+temperature: -10 .. 50
+humidity: 0 .. 100
+noise: 0 .. 100
+presence: true/false
+```
+
+Se un dato e fuori range, il bridge risponde con errore `400` e non aggiorna Firebase.
+
+Esempio dato rifiutato:
+
+```json
+{"temperature":999,"humidity":48,"noise":35,"presence":true}
+```
+
+## Troubleshooting
+
+### Il bridge non parte
+
+Controlla che Python sia installato:
+
+```powershell
+py --version
+```
+
+Controlla che il comando contenga il database host senza `https://`:
+
+Corretto:
+
+```text
+smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app
+```
+
+Sbagliato:
+
+```text
+https://smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app/
+```
+
+### ESP32 non raggiunge il bridge
+
+Controlla:
+
+- ESP32 e PC devono essere sulla stessa rete Wi-Fi;
+- `BRIDGE_HOST` deve essere l'IP IPv4 del PC;
+- il bridge deve essere acceso;
+- Windows Firewall deve permettere a Python di ricevere connessioni;
+- prova dal browser `http://IP_DEL_PC:3000/health`.
+
+### Arduino UNO non invia dati
+
+Controlla:
+
+- Serial Monitor impostato a `115200 baud`;
+- porta corretta in `serial_to_bridge.py`;
+- Arduino IDE non deve tenere occupata la porta mentre lo script Python la usa;
+- se il Serial Monitor e aperto, chiudilo prima di avviare `serial_to_bridge.py`.
+
+### Firebase non si aggiorna
+
+Controlla:
+
+- regole Firebase temporanee `.read` e `.write` a `true`;
+- database host corretto;
+- bridge acceso;
+- risposta HTTP del bridge;
+- console Firebase su `rooms/room1` e `rooms/room2`.
+
+### Android Studio non vede l'emulatore
+
+Apri:
+
+```text
+Tools > Device Manager
+```
+
+Crea un virtual device, ad esempio Pixel 6 o Pixel 5.
+
+Se il progetto e lento o Gradle da problemi, aprilo da una cartella Windows locale invece che da WSL.
+
+## Modalita di test consigliata
+
+Per testare tutto senza sensori reali:
+
+1. Imposta `USE_SIMULATION 1` su ESP32.
+2. Imposta `USE_SIMULATION 1` su Arduino UNO.
+3. Avvia il bridge.
+4. Avvia `serial_to_bridge.py`.
+5. Accendi ESP32.
+6. Controlla Firebase.
+7. Apri app Android.
+
+Se funziona, vedrai:
+
+```text
+rooms/room1 aggiornato dall'ESP32
+rooms/room2 aggiornato dall'Arduino UNO via seriale
+history/room1 popolato
+history/room2 popolato
+app Android aggiornata in realtime
+```
+
+## Possibili sviluppi futuri
+
+- Bridge su Raspberry Pi come gateway locale sempre acceso.
+- Bridge cloud per eliminare il vincolo della stessa rete Wi-Fi.
+- Autenticazione Firebase piu sicura.
+- Notifiche push tramite Firebase Cloud Messaging.
+- Dashboard web.
+- Storico dati con grafici temporali.
+- Predizioni AI based su rumore, score o occupazione.
+- Attuatori fisici: LED RGB, display OLED, buzzer.
+- Sensori CO2 o qualita dell'aria.
+- Supporto dinamico a piu aule.
+- Prenotazione aula.
+
+## Frase riassuntiva per presentazione
+
+```text
+Smart Study Rooms crea un digital twin di ogni aula studio: i nodi IoT raccolgono dati ambientali, il bridge software li valida e li sincronizza su Firebase, mentre l'app Android mostra lo stato realtime delle aule e suggerisce quella piu adatta allo studio.
 ```
