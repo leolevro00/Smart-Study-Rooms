@@ -768,3 +768,101 @@ app Android aggiornata in realtime
 ```text
 Smart Study Rooms crea un digital twin di ogni aula studio: i nodi IoT raccolgono dati ambientali, il bridge software li valida e li sincronizza su Firebase, mentre l'app Android mostra lo stato realtime delle aule e suggerisce quella piu adatta allo studio.
 ```
+
+## Predizioni ML based
+
+La cartella `lm/` contiene una prima pipeline di machine learning:
+
+```text
+lm/predictor.py
+lm/requirements.txt
+```
+
+Lo script legge lo storico da Firebase:
+
+```text
+history/<room_id>/<timestamp>
+```
+
+e lo trasforma in un dataset tabellare con colonne come:
+
+```text
+temperature, humidity, noise, presence, hour, day_of_week, score_now, target_score
+```
+
+Il target e lo score futuro dopo un certo numero di minuti. Di default:
+
+```text
+target_score = score tra 15 minuti
+```
+
+Poi lo script allena un modello:
+
+```text
+RandomForestRegressor
+```
+
+e scrive le predizioni in Firebase:
+
+```text
+predictions/room1
+predictions/room2
+```
+
+Esempio di predizione salvata:
+
+```json
+{
+  "currentScore": 84,
+  "predictedScore": 76,
+  "horizonMinutes": 15,
+  "trend": "peggioramento",
+  "model": "RandomForestRegressor",
+  "mae": 6.2,
+  "generatedAt": 1710000000000
+}
+```
+
+### Installazione dipendenze ML
+
+Da terminale nella root del progetto:
+
+```powershell
+py -m pip install -r lm\requirements.txt
+```
+
+Su Linux/macOS:
+
+```bash
+python3 -m pip install -r lm/requirements.txt
+```
+
+### Avvio predizione una tantum
+
+```powershell
+py lm\predictor.py --database-host TUO_DATABASE.firebasedatabase.app
+```
+
+### Esportare il dataset in CSV
+
+```powershell
+py lm\predictor.py --database-host TUO_DATABASE.firebasedatabase.app --export-csv dataset.csv
+```
+
+Questo comando crea un file `dataset.csv` con le righe usate dal modello. E utile per controllare cosa sta imparando il modello e per mostrarlo nella relazione.
+
+### Esecuzione continua
+
+Aggiorna le predizioni ogni 60 secondi:
+
+```powershell
+py lm\predictor.py --database-host TUO_DATABASE.firebasedatabase.app --loop --interval 60
+```
+
+Per funzionare bene, servono abbastanza dati in `history/`. Con pochi minuti di storico il modello potrebbe non avere righe sufficienti per allenarsi, perche deve trovare coppie:
+
+```text
+situazione attuale -> score futuro
+```
+
+Per esempio, con `--horizon-minutes 15`, lo script deve trovare misure distanti almeno 15 minuti tra loro.
