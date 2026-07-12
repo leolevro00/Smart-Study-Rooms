@@ -72,7 +72,6 @@ def validate_payload(room_id, payload):
         "temperature": required_number(payload, "temperature", -10, 50),
         "humidity": required_number(payload, "humidity", 0, 100),
         "noise": required_number(payload, "noise", 0, 100),
-        "presence": required_bool(payload, "presence"),
         "lastUpdate": timestamp,
         "source": "bridge",
     }

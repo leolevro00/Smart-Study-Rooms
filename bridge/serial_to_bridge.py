@@ -15,7 +15,7 @@ except ImportError as exc:
     ) from exc
 
 
-REQUIRED_KEYS = {"name", "temperature", "humidity", "noise", "presence"}
+REQUIRED_KEYS = {"name", "temperature", "humidity", "noise"}
 
 
 def post_json(url, payload):
