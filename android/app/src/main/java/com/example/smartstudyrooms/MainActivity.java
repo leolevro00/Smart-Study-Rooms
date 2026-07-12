@@ -59,7 +59,9 @@ public class MainActivity extends AppCompatActivity {
         bindViews();
         createNoiseNotificationChannel();
         requestNotificationPermissionIfNeeded();
-        roomsRef = FirebaseDatabase.getInstance().getReference("rooms");
+        FirebaseDatabase database = FirebaseDatabase.getInstance("https://smartstudyrooms-659ff-default-rtdb.europe-west1.firebasedatabase.app");
+
+        roomsRef = database.getReference("rooms");
         listenForRooms();
     }
 

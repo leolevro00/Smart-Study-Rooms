@@ -1,7 +1,7 @@
 ﻿#include <DHT.h>
 
 // Set 1 to test the serial bridge without physical sensors, 0 to read real sensors.
-#define USE_SIMULATION 1
+#define USE_SIMULATION 0
 
 // Room configuration for the Arduino UNO serial node.
 const char* ROOM_NAME = "Aula 2";
@@ -9,9 +9,8 @@ const char* ROOM_NAME = "Aula 2";
 // Sensor pins. Adjust according to your wiring.
 const int DHT_PIN = 2;
 const int DHT_TYPE = DHT22; // Change to DHT11 if needed.
-const int NOISE_PIN = A0;
-const int PIR_PIN = 3;
-const bool USE_PIR_SENSOR = true;
+const int NOISE_PIN = A1;
+
 
 const unsigned long SEND_INTERVAL_MS = 10000;
 
@@ -22,14 +21,13 @@ struct RoomReading {
   float temperature;
   float humidity;
   int noise;
-  bool presence;
 };
 
 void setup() {
   Serial.begin(115200);
 
   pinMode(NOISE_PIN, INPUT);
-  pinMode(PIR_PIN, INPUT);
+ 
 
   randomSeed(analogRead(A5));
   dht.begin();
@@ -70,11 +68,7 @@ RoomReading readSensors() {
   reading.noise = map(rawNoise, 0, 1023, 0, 100);
   reading.noise = constrain(reading.noise, 0, 100);
 
-  if (USE_PIR_SENSOR) {
-    reading.presence = digitalRead(PIR_PIN) == HIGH;
-  } else {
-    reading.presence = false;
-  }
+
 
   return reading;
 }
@@ -85,7 +79,7 @@ RoomReading simulateReading() {
   reading.temperature = random(190, 271) / 10.0;
   reading.humidity = random(350, 701) / 10.0;
   reading.noise = random(20, 81);
-  reading.presence = random(0, 2) == 1;
+  
 
   return reading;
 }
@@ -103,9 +97,6 @@ String buildJsonPayload(RoomReading reading) {
   json += ",";
   json += "\"noise\":";
   json += String(reading.noise);
-  json += ",";
-  json += "\"presence\":";
-  json += (reading.presence ? "true" : "false");
   json += "}";
 
   return json;
