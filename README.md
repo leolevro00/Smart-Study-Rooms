@@ -380,7 +380,12 @@ history/room1/<timestamp>
 Apri lo sketch:
 
 ```text
-arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode.ino
+arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode1.ino 
+```
+oppure
+
+```text
+arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode2.ino 
 ```
 
 Per il primo test lascia:
@@ -401,6 +406,11 @@ Configura il nome aula se necessario (vale per entrambe le aule):
 
 ```cpp
 const char* ROOM_NAME = "Aula 1";
+```
+oppure
+
+```cpp
+const char* ROOM_NAME = "Aula 2";
 ```
 
 Carica lo sketch su Arduino UNO.
