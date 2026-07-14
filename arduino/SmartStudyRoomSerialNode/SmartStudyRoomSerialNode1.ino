@@ -4,7 +4,7 @@
 #define USE_SIMULATION 0
 
 // Room configuration for the Arduino UNO serial node.
-const char* ROOM_NAME = "Aula 2";
+const char* ROOM_NAME = "Aula 1";
 
 // Sensor pins. Adjust according to your wiring.
 const int DHT_PIN = 2;
