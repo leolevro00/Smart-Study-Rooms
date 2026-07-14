@@ -9,7 +9,7 @@ const char* ROOM_NAME = "Aula 1";
 // Sensor pins. Adjust according to your wiring.
 const int DHT_PIN = 2;
 const int DHT_TYPE = DHT22; // Change to DHT11 if needed.
-const int NOISE_PIN = A1;
+const int NOISE_PIN = A1; // Set properly
 
 
 const unsigned long SEND_INTERVAL_MS = 10000;
