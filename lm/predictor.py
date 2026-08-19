@@ -1,13 +1,15 @@
 ﻿#!/usr/bin/env python3
 """Build an ML dataset from Firebase history and predict future room scores.
 
-Input Firebase structure:
-  history/<room_id>/<timestamp>
+Input options:
+  - Firebase history node: history/<room_id>/<timestamp>
+  - Local JSON exported from Firebase. Supported shapes:
+      1) full database export: {"history": {"room2": {...}}}
+      2) history export: {"room2": {...}}
+      3) single room export: {"1782...": {...}} plus --room-id room2
 
-Output Firebase structure:
+Output Firebase structure, when --database-host is provided:
   predictions/<room_id>
-
-The model predicts the room score after a configurable time horizon.
 """
 
 import argparse
@@ -15,6 +17,7 @@ import json
 import time
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
@@ -55,6 +58,36 @@ def put_json(url, payload):
     )
     with urllib.request.urlopen(request, timeout=20) as response:
         return response.status
+
+
+def load_local_history(path, room_id=None):
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    return normalize_history_json(data, room_id)
+
+
+def looks_like_measurement(value):
+    return isinstance(value, dict) and {"temperature", "humidity", "noise", "presence"}.issubset(value.keys())
+
+
+def normalize_history_json(data, room_id=None):
+    if not isinstance(data, dict):
+        raise ValueError("Il file JSON deve contenere un oggetto")
+
+    if "history" in data and isinstance(data["history"], dict):
+        return data["history"]
+
+    if room_id:
+        measurements = {key: value for key, value in data.items() if looks_like_measurement(value)}
+        if measurements:
+            return {room_id: measurements}
+
+    if data and all(looks_like_measurement(value) for value in data.values()):
+        raise ValueError("Il file sembra l'export di una singola aula: specifica --room-id, per esempio --room-id room2")
+
+    if data and all(isinstance(value, dict) for value in data.values()):
+        return data
+
+    raise ValueError("Formato JSON history non riconosciuto")
 
 
 def calculate_score(row):
@@ -210,11 +243,19 @@ def build_predictions(df, model, mae, horizon_minutes):
     return predictions
 
 
+def load_history(args):
+    if args.history_json:
+        return load_local_history(args.history_json, args.room_id)
+    if args.database_host:
+        return get_json(firebase_url(args.database_host, "history", args.auth))
+    raise SystemExit("Specifica --history-json oppure --database-host")
+
+
 def run_once(args):
-    history = get_json(firebase_url(args.database_host, "history", args.auth))
+    history = load_history(args)
     df = history_to_dataframe(history)
     if df.empty:
-        raise SystemExit("Nessun dato valido trovato in history/")
+        raise SystemExit("Nessun dato valido trovato nello storico")
 
     dataset = add_future_target(df, args.horizon_minutes)
     if args.export_csv:
@@ -224,9 +265,12 @@ def run_once(args):
     model, mae = train_model(dataset)
     predictions = build_predictions(df, model, mae, args.horizon_minutes)
 
-    for room_id, payload in predictions.items():
-        status = put_json(firebase_url(args.database_host, f"predictions/{room_id}", args.auth), payload)
-        print(f"predictions/{room_id}: HTTP {status} -> {payload}")
+    if args.database_host:
+        for room_id, payload in predictions.items():
+            status = put_json(firebase_url(args.database_host, f"predictions/{room_id}", args.auth), payload)
+            print(f"predictions/{room_id}: HTTP {status} -> {payload}")
+    else:
+        print(json.dumps({"predictions": predictions}, indent=2))
 
     print(f"Training rows: {len(dataset)}")
     print(f"MAE: {mae:.2f}")
@@ -234,8 +278,10 @@ def run_once(args):
 
 def main():
     parser = argparse.ArgumentParser(description="Smart Study Rooms ML predictor")
-    parser.add_argument("--database-host", required=True, help="Firebase RTDB host without https://")
+    parser.add_argument("--database-host", default=None, help="Firebase RTDB host without https://")
     parser.add_argument("--auth", default=None, help="Optional Firebase database secret or auth token")
+    parser.add_argument("--history-json", default=None, help="Local JSON export from Firebase history or a single room history node")
+    parser.add_argument("--room-id", default=None, help="Room id required when --history-json is a single room export")
     parser.add_argument("--horizon-minutes", type=int, default=15, help="Prediction horizon. Default: 15")
     parser.add_argument("--export-csv", default=None, help="Optional path where the generated dataset CSV is saved")
     parser.add_argument("--loop", action="store_true", help="Run continuously")
@@ -251,3 +297,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

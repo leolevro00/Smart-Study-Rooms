@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -137,6 +137,21 @@
                     android:id="@+id/room1Status"
                     style="@style/RoomStatusText"
                     android:text="Stato: dati non disponibili" />
+
+                <TextView
+                    android:id="@+id/room1PredictionScore"
+                    style="@style/RoomMetricText"
+                    android:text="Predizione ML: N/D" />
+
+                <TextView
+                    android:id="@+id/room1PredictionTrend"
+                    style="@style/RoomMetricText"
+                    android:text="Trend previsto: N/D" />
+
+                <TextView
+                    android:id="@+id/room1PredictionModel"
+                    style="@style/RoomMetricText"
+                    android:text="Modello: N/D" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
@@ -214,6 +229,21 @@
                     android:id="@+id/room2Status"
                     style="@style/RoomStatusText"
                     android:text="Stato: dati non disponibili" />
+
+                <TextView
+                    android:id="@+id/room2PredictionScore"
+                    style="@style/RoomMetricText"
+                    android:text="Predizione ML: N/D" />
+
+                <TextView
+                    android:id="@+id/room2PredictionTrend"
+                    style="@style/RoomMetricText"
+                    android:text="Trend previsto: N/D" />
+
+                <TextView
+                    android:id="@+id/room2PredictionModel"
+                    style="@style/RoomMetricText"
+                    android:text="Modello: N/D" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 

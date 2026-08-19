@@ -36,7 +36,9 @@ public class MainActivity extends AppCompatActivity {
     private static final int NOISE_ALERT_RESET_THRESHOLD = 60;
 
     private DatabaseReference roomsRef;
+    private DatabaseReference predictionsRef;
     private ValueEventListener roomsListener;
+    private ValueEventListener predictionsListener;
 
     private TextView connectionMessage;
     private TextView recommendedRoomText;
@@ -47,6 +49,8 @@ public class MainActivity extends AppCompatActivity {
 
     private Room room1;
     private Room room2;
+    private RoomPrediction room1Prediction;
+    private RoomPrediction room2Prediction;
     private RoomScoreCalculator.StudyPreference selectedPreference = RoomScoreCalculator.StudyPreference.BALANCED;
     private boolean room1NoiseAlertActive;
     private boolean room2NoiseAlertActive;
@@ -60,9 +64,10 @@ public class MainActivity extends AppCompatActivity {
         createNoiseNotificationChannel();
         requestNotificationPermissionIfNeeded();
         FirebaseDatabase database = FirebaseDatabase.getInstance("https://smartstudyrooms-659ff-default-rtdb.europe-west1.firebasedatabase.app");
-
         roomsRef = database.getReference("rooms");
+        predictionsRef = database.getReference("predictions");
         listenForRooms();
+        listenForPredictions();
     }
 
     @Override
@@ -70,6 +75,9 @@ public class MainActivity extends AppCompatActivity {
         super.onDestroy();
         if (roomsRef != null && roomsListener != null) {
             roomsRef.removeEventListener(roomsListener);
+        }
+        if (predictionsRef != null && predictionsListener != null) {
+            predictionsRef.removeEventListener(predictionsListener);
         }
     }
 
@@ -90,7 +98,10 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.room1Presence),
                 findViewById(R.id.room1LastUpdate),
                 findViewById(R.id.room1Score),
-                findViewById(R.id.room1Status)
+                findViewById(R.id.room1Status),
+                findViewById(R.id.room1PredictionScore),
+                findViewById(R.id.room1PredictionTrend),
+                findViewById(R.id.room1PredictionModel)
         );
 
         room2Views = new RoomViews(
@@ -105,7 +116,10 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.room2Presence),
                 findViewById(R.id.room2LastUpdate),
                 findViewById(R.id.room2Score),
-                findViewById(R.id.room2Status)
+                findViewById(R.id.room2Status),
+                findViewById(R.id.room2PredictionScore),
+                findViewById(R.id.room2PredictionTrend),
+                findViewById(R.id.room2PredictionModel)
         );
 
         setupPreferenceSpinner();
@@ -182,6 +196,26 @@ public class MainActivity extends AppCompatActivity {
         roomsRef.addValueEventListener(roomsListener);
     }
 
+    private void listenForPredictions() {
+        predictionsListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot snapshot) {
+                room1Prediction = snapshot.child("room1").getValue(RoomPrediction.class);
+                room2Prediction = snapshot.child("room2").getValue(RoomPrediction.class);
+
+                updatePrediction(room1Views, room1Prediction);
+                updatePrediction(room2Views, room2Prediction);
+            }
+
+            @Override
+            public void onCancelled(DatabaseError error) {
+                showMessage("Errore predizioni Firebase: " + error.getMessage());
+            }
+        };
+
+        predictionsRef.addValueEventListener(predictionsListener);
+    }
+
     private void updateRoom(RoomViews views, Room room, String fallbackName) {
         if (room == null) {
             clearRoom(views, fallbackName);
@@ -206,6 +240,20 @@ public class MainActivity extends AppCompatActivity {
         views.card.setCardBackgroundColor(getColorForStatus(status));
     }
 
+    private void updatePrediction(RoomViews views, RoomPrediction prediction) {
+        if (prediction == null) {
+            clearPrediction(views);
+            return;
+        }
+
+        views.predictionScore.setText("Predizione ML: "
+                + formatInteger(prediction.getPredictedScore()) + "/100 tra "
+                + formatInteger(prediction.getHorizonMinutes()) + " min");
+        views.predictionTrend.setText("Trend previsto: " + valueOrFallback(prediction.getTrend(), "N/D"));
+        views.predictionModel.setText("Modello: " + valueOrFallback(prediction.getModel(), "N/D")
+                + " | MAE: " + formatDecimal(prediction.getMae()));
+    }
+
     private void clearRoom(RoomViews views, String fallbackName) {
         views.name.setText(fallbackName);
         views.temperature.setText("Temperatura: N/D");
@@ -218,7 +266,14 @@ public class MainActivity extends AppCompatActivity {
         views.lastUpdate.setText("Ultimo aggiornamento: N/D");
         views.score.setText("Score: N/D");
         views.status.setText("Stato: dati non disponibili");
+        clearPrediction(views);
         views.card.setCardBackgroundColor(getColor(R.color.card_neutral));
+    }
+
+    private void clearPrediction(RoomViews views) {
+        views.predictionScore.setText("Predizione ML: N/D");
+        views.predictionTrend.setText("Trend previsto: N/D");
+        views.predictionModel.setText("Modello: N/D");
     }
 
     private void updateRecommendation() {
@@ -363,6 +418,13 @@ public class MainActivity extends AppCompatActivity {
         return String.format(Locale.ITALY, "%.1f", value);
     }
 
+    private String formatInteger(Long value) {
+        if (value == null) {
+            return "N/D";
+        }
+        return String.valueOf(value);
+    }
+
     private String formatPresence(Boolean presence) {
         if (presence == null) {
             return "N/D";
@@ -420,6 +482,9 @@ public class MainActivity extends AppCompatActivity {
         final TextView lastUpdate;
         final TextView score;
         final TextView status;
+        final TextView predictionScore;
+        final TextView predictionTrend;
+        final TextView predictionModel;
 
         RoomViews(
                 CardView card,
@@ -433,7 +498,10 @@ public class MainActivity extends AppCompatActivity {
                 TextView presence,
                 TextView lastUpdate,
                 TextView score,
-                TextView status
+                TextView status,
+                TextView predictionScore,
+                TextView predictionTrend,
+                TextView predictionModel
         ) {
             this.card = card;
             this.name = name;
@@ -447,6 +515,9 @@ public class MainActivity extends AppCompatActivity {
             this.lastUpdate = lastUpdate;
             this.score = score;
             this.status = status;
+            this.predictionScore = predictionScore;
+            this.predictionTrend = predictionTrend;
+            this.predictionModel = predictionModel;
         }
     }
 }
