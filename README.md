@@ -13,6 +13,21 @@ Il progetto include:
 - notifiche locali quando un'aula diventa troppo rumorosa;
 - storico dati su Firebase tramite bridge.
 
+## Indice rapido
+
+Usa questa legenda per saltare subito ai punti principali del progetto:
+
+1. [Come far partire tutto il sistema](#come-far-partire-tutto-il-sistema)
+2. [Configurare Firebase](#configurare-firebase)
+3. [Avviare il bridge Python](#1-avviare-il-bridge-python)
+4. [Test manuale senza hardware](#2-test-manuale-del-bridge-senza-hardware)
+5. [Configurare ESP32 per Aula 1](#3-configurare-esp32)
+6. [Configurare Arduino UNO per Aula 2](#4-configurare-arduino-uno-senza-wi-fi)
+7. [Avviare serial_to_bridge.py](#5-avviare-serial_to_bridgepy)
+8. [Avviare l'app Android](#6-avviare-lapp-android)
+9. [Predizioni ML based](#predizioni-ml-based)
+10. [Troubleshooting](#troubleshooting)
+
 ## Architettura del progetto
 
 L'architettura reale del progetto e questa:
@@ -286,17 +301,222 @@ python3 -m pip install -r bridge/requirements.txt
 
 `requirements.txt` installa `pyserial`, usato per leggere la seriale dell'Arduino UNO.
 
-## Avvio completo del sistema
+## Come far partire tutto il sistema
 
-L'ordine consigliato e:
+Questa e la procedura completa consigliata per avviare l'intero ecosistema Smart Study Rooms durante un test o una demo.
 
-1. Avvia Firebase Realtime Database.
-2. Avvia il bridge Python sul PC.
-3. Collega Arduino UNO via USB.
-4. Avvia lo script `serial_to_bridge.py` per Arduino UNO.
-5. Accendi o carica lo sketch ESP32.
-6. Apri l'app Android.
-7. Controlla Firebase.
+### Prima di iniziare
+
+Controlla di avere:
+
+- Firebase Realtime Database creato;
+- regole Firebase temporanee abilitate per test;
+- file `google-services.json` presente in `android/app/google-services.json`;
+- Python installato;
+- dipendenze del bridge installate;
+- Android Studio pronto con emulatore o telefono fisico;
+- ESP32 configurato con SSID, password Wi-Fi e IP del PC;
+- Arduino UNO collegato via USB;
+- porta seriale dell'Arduino nota, ad esempio `COM3`, `COM4` o `/dev/ttyACM0`.
+
+### Ordine di avvio consigliato
+
+1. Apri Firebase Console e tieni d'occhio i nodi `rooms`, `history` e `predictions`.
+2. Apri il primo terminale e avvia il bridge Python.
+3. Verifica che il bridge risponda su `/health`.
+4. Collega Arduino UNO via USB.
+5. Apri il secondo terminale e avvia `serial_to_bridge.py`.
+6. Accendi ESP32 oppure carica lo sketch su ESP32.
+7. Controlla che Firebase riceva `rooms/room1` e `rooms/room2`.
+8. Apri Android Studio e avvia l'app.
+9. Se vuoi usare anche le predizioni, avvia `lm/predictor.py` in un terzo terminale.
+10. Controlla che l'app mostri dati realtime, score, aula consigliata e predizioni.
+
+### Terminale 1: bridge Python
+
+Da Windows PowerShell, nella root del progetto:
+
+```powershell
+py bridge\bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
+```
+
+Da WSL/Linux:
+
+```bash
+python3 bridge/bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
+```
+
+Se funziona, il bridge deve mostrare:
+
+```text
+Listening on http://0.0.0.0:3000
+History enabled: True
+```
+
+Lascia questo terminale aperto.
+
+### Test rapido del bridge
+
+Apri nel browser:
+
+```text
+http://localhost:3000/health
+```
+
+Risultato atteso:
+
+```json
+{"status":"ok","service":"smart-study-rooms-bridge"}
+```
+
+Se questo test non funziona, non andare avanti: prima risolvi il bridge.
+
+### Terminale 2: Arduino UNO via seriale
+
+Dopo aver collegato Arduino UNO via USB, trova la porta seriale da Arduino IDE:
+
+```text
+Tools > Port
+```
+
+Poi avvia il forwarder seriale.
+
+Esempio Windows:
+
+```powershell
+py bridge\serial_to_bridge.py --port COM3 --room-id room2 --bridge-url http://localhost:3000
+```
+
+Esempio Linux/WSL:
+
+```bash
+python3 bridge/serial_to_bridge.py --port /dev/ttyACM0 --room-id room2 --bridge-url http://localhost:3000
+```
+
+Se funziona, Firebase deve aggiornare:
+
+```text
+rooms/room2
+history/room2/<timestamp>
+```
+
+Lascia anche questo terminale aperto.
+
+### ESP32 per Aula 1
+
+Nel file:
+
+```text
+esp32/SmartStudyRoomEsp32Node/SmartStudyRoomEsp32Node.ino
+```
+
+controlla che siano configurati:
+
+```cpp
+const char* ROOM_ID = "room1";
+const char* ROOM_NAME = "Aula 1";
+const char* WIFI_SSID = "NOME_WIFI";
+const char* WIFI_PASSWORD = "PASSWORD_WIFI";
+const char* BRIDGE_HOST = "IP_DEL_PC";
+const int BRIDGE_PORT = 3000;
+```
+
+`BRIDGE_HOST` deve essere l'indirizzo IPv4 del PC su cui sta girando il bridge.
+
+Su Windows lo trovi con:
+
+```powershell
+ipconfig
+```
+
+Se ESP32 funziona, Firebase deve aggiornare:
+
+```text
+rooms/room1
+history/room1/<timestamp>
+```
+
+### Android app
+
+Apri Android Studio, sincronizza Gradle e avvia l'app su emulatore o telefono.
+
+L'app deve leggere:
+
+```text
+rooms/room1
+rooms/room2
+predictions/room1
+predictions/room2
+```
+
+Nella schermata principale dovresti vedere:
+
+- dati realtime delle due aule;
+- score di ogni aula;
+- stato dell'aula;
+- aula consigliata;
+- eventuali predizioni ML;
+- notifiche se il rumore supera la soglia.
+
+### Terminale 3 opzionale: predizioni ML
+
+Se vuoi mostrare anche la parte AI based, avvia il predictor.
+
+Da WSL con ambiente virtuale attivo:
+
+```bash
+source .venv/bin/activate
+python lm/predictor.py \
+  --database-host TUO_DATABASE.firebasedatabase.app \
+  --horizon-minutes 1 \
+  --loop \
+  --interval 60
+```
+
+Questo comando aggiorna Firebase ogni 60 secondi.
+
+Se in Firebase esistono sia `history/room1` sia `history/room2`, lo script crea automaticamente:
+
+```text
+predictions/room1
+predictions/room2
+```
+
+Se esiste solo `history/room2`, verra creata solo `predictions/room2`.
+
+### Controllo finale su Firebase
+
+Alla fine dell'avvio dovresti vedere almeno:
+
+```text
+rooms
+  room1
+  room2
+
+history
+  room1
+  room2
+```
+
+Se hai avviato anche il predictor:
+
+```text
+predictions
+  room1
+  room2
+```
+
+### Riassunto super rapido per demo
+
+```text
+1. Firebase aperto
+2. Terminale 1: bridge_server.py
+3. Browser: http://localhost:3000/health
+4. Terminale 2: serial_to_bridge.py per Arduino UNO
+5. ESP32 acceso
+6. Android Studio: Run app
+7. Terminale 3 opzionale: predictor.py --loop
+```
 
 ## 1. Avviare il bridge Python
 
