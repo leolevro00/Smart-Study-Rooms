@@ -4,13 +4,14 @@
 #define USE_SIMULATION 0
 
 // Room configuration for the Arduino UNO serial node.
-const char* ROOM_NAME = "Aula 2";
+const char* ROOM_NAME = "Aula 1";
 
 // Sensor pins. Adjust according to your wiring.
 const int DHT_PIN = 2;
 const int DHT_TYPE = DHT22; // Change to DHT11 if needed.
 const int NOISE_PIN = A1; // Connect the analog output AO of the noise sensor here.
-const int LED_PIN = 13;
+const int GREEN_LED_PIN = 13; //Led for cooling
+const int RED_LED_PIN = 12; //Led for heating
 
 
 // Noise calibration. The sketch samples the microphone for a short window and
@@ -18,8 +19,8 @@ const int LED_PIN = 13;
 const unsigned long NOISE_SAMPLE_WINDOW_MS = 80;
 const int NOISE_RAW_MIN = 5;
 const int NOISE_RAW_MAX = 120;
-const float TEMPERATURE_THRESHOLD = 28.0;
-
+const float HEATING_THRESHOLD = 26.0; // soglia in °C per attuare il raffrescamento
+const float COOLING_THRESHOLD = 20.0; //soglia in °C per attuare il riscaldamento
 const unsigned long SEND_INTERVAL_MS = 10000;
 
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -36,8 +37,10 @@ void setup() {
   Serial.begin(115200);
 
   pinMode(NOISE_PIN, INPUT);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
+  pinMode(GREEN_LED_PIN, OUTPUT);
+  pinMode(RED_LED_PIN, OUTPUT);
+  digitalWrite(GREEN_LED_PIN, LOW);
+  digitalWrite(RED_LED_PIN, LOW);
  
 
   randomSeed(analogRead(A5));
@@ -57,10 +60,11 @@ void loop() {
     lastSendMs = now;
 
     RoomReading reading = readRoom(maxNoiseSinceLastSend);
-    if (reading.temperature > TEMPERATURE_THRESHOLD) {
-      digitalWrite(LED_PIN, HIGH);
-    } else {
-      digitalWrite(LED_PIN, LOW);
+    if (reading.temperature > HEATING_THRESHOLD) {
+      digitalWrite(GREEN_LED_PIN, HIGH);
+    }
+    if (reading.temperature < COOLING_THRESHOLD) {
+      digitalWrite(RED_LED_PIN, HIGH);
     }
     Serial.println(buildJsonPayload(reading));
     maxNoiseSinceLastSend = 0;
