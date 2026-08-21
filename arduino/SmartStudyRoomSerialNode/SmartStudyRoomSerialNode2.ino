@@ -21,6 +21,7 @@ const unsigned long SEND_INTERVAL_MS = 10000;
 
 DHT dht(DHT_PIN, DHT_TYPE);
 unsigned long lastSendMs = 0;
+int maxNoiseSinceLastSend = 0;
 
 struct RoomReading {
   float temperature;
@@ -39,24 +40,32 @@ void setup() {
 }
 
 void loop() {
+#if !USE_SIMULATION
+  int currentNoise = readNoiseLevel();
+  if (currentNoise > maxNoiseSinceLastSend) {
+    maxNoiseSinceLastSend = currentNoise;
+  }
+#endif
+
   unsigned long now = millis();
   if (now - lastSendMs >= SEND_INTERVAL_MS || lastSendMs == 0) {
     lastSendMs = now;
 
-    RoomReading reading = readRoom();
+    RoomReading reading = readRoom(maxNoiseSinceLastSend);
     Serial.println(buildJsonPayload(reading));
+    maxNoiseSinceLastSend = 0;
   }
 }
 
-RoomReading readRoom() {
+RoomReading readRoom(int noiseLevel) {
 #if USE_SIMULATION
   return simulateReading();
 #else
-  return readSensors();
+  return readSensors(noiseLevel);
 #endif
 }
 
-RoomReading readSensors() {
+RoomReading readSensors(int noiseLevel) {
   RoomReading reading;
 
   reading.temperature = dht.readTemperature();
@@ -69,7 +78,7 @@ RoomReading readSensors() {
     reading.humidity = -1.0;
   }
 
-  reading.noise = readNoiseLevel();
+  reading.noise = noiseLevel;
 
   return reading;
 }
