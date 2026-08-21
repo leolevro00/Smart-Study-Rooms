@@ -5,19 +5,18 @@ public class Room {
     private Double temperature;
     private Double humidity;
     private Double noise;
-    private Boolean presence;
+
     private Long lastUpdate;
 
     public Room() {
         // Required by Firebase Realtime Database.
     }
 
-    public Room(String name, Double temperature, Double humidity, Double noise, Boolean presence, Long lastUpdate) {
+    public Room(String name, Double temperature, Double humidity, Double noise,  Long lastUpdate) {
         this.name = name;
         this.temperature = temperature;
         this.humidity = humidity;
         this.noise = noise;
-        this.presence = presence;
         this.lastUpdate = lastUpdate;
     }
 
@@ -53,13 +52,6 @@ public class Room {
         this.noise = noise;
     }
 
-    public Boolean getPresence() {
-        return presence;
-    }
-
-    public void setPresence(Boolean presence) {
-        this.presence = presence;
-    }
 
     public Long getLastUpdate() {
         return lastUpdate;

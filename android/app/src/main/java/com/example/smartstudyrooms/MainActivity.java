@@ -1,6 +1,7 @@
 package com.example.smartstudyrooms;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -32,8 +33,8 @@ import java.util.Locale;
 public class MainActivity extends AppCompatActivity {
     private static final String NOISE_CHANNEL_ID = "noise_alerts";
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 20;
-    private static final int NOISE_ALERT_THRESHOLD = 70;
-    private static final int NOISE_ALERT_RESET_THRESHOLD = 60;
+    private static final int NOISE_ALERT_THRESHOLD = 30;
+    private static final int NOISE_ALERT_RESET_THRESHOLD = 20;
 
     private DatabaseReference roomsRef;
     private DatabaseReference predictionsRef;
@@ -95,7 +96,6 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.room1HumidityBar),
                 findViewById(R.id.room1Noise),
                 findViewById(R.id.room1NoiseBar),
-                findViewById(R.id.room1Presence),
                 findViewById(R.id.room1LastUpdate),
                 findViewById(R.id.room1Score),
                 findViewById(R.id.room1Status),
@@ -113,7 +113,6 @@ public class MainActivity extends AppCompatActivity {
                 findViewById(R.id.room2HumidityBar),
                 findViewById(R.id.room2Noise),
                 findViewById(R.id.room2NoiseBar),
-                findViewById(R.id.room2Presence),
                 findViewById(R.id.room2LastUpdate),
                 findViewById(R.id.room2Score),
                 findViewById(R.id.room2Status),
@@ -216,6 +215,7 @@ public class MainActivity extends AppCompatActivity {
         predictionsRef.addValueEventListener(predictionsListener);
     }
 
+    @SuppressLint("SetTextI18n")
     private void updateRoom(RoomViews views, Room room, String fallbackName) {
         if (room == null) {
             clearRoom(views, fallbackName);
@@ -233,7 +233,6 @@ public class MainActivity extends AppCompatActivity {
         views.temperatureBar.setProgress(progressValue(room.getTemperature(), 40));
         views.humidityBar.setProgress(progressValue(room.getHumidity(), 100));
         views.noiseBar.setProgress(progressValue(room.getNoise(), 100));
-        views.presence.setText("Presenza: " + formatPresence(room.getPresence()));
         views.lastUpdate.setText("Ultimo aggiornamento: " + formatTimestamp(room.getLastUpdate()));
         views.score.setText("Score: " + score + "/100");
         views.status.setText("Stato: " + status);
@@ -262,7 +261,6 @@ public class MainActivity extends AppCompatActivity {
         views.temperatureBar.setProgress(0);
         views.humidityBar.setProgress(0);
         views.noiseBar.setProgress(0);
-        views.presence.setText("Presenza: N/D");
         views.lastUpdate.setText("Ultimo aggiornamento: N/D");
         views.score.setText("Score: N/D");
         views.status.setText("Stato: dati non disponibili");
@@ -425,13 +423,6 @@ public class MainActivity extends AppCompatActivity {
         return String.valueOf(value);
     }
 
-    private String formatPresence(Boolean presence) {
-        if (presence == null) {
-            return "N/D";
-        }
-        return presence ? "Rilevata" : "Non rilevata";
-    }
-
     private String formatTimestamp(Long timestamp) {
         if (timestamp == null || timestamp <= 0) {
             return "N/D";
@@ -478,7 +469,6 @@ public class MainActivity extends AppCompatActivity {
         final ProgressBar humidityBar;
         final TextView noise;
         final ProgressBar noiseBar;
-        final TextView presence;
         final TextView lastUpdate;
         final TextView score;
         final TextView status;
@@ -495,7 +485,6 @@ public class MainActivity extends AppCompatActivity {
                 ProgressBar humidityBar,
                 TextView noise,
                 ProgressBar noiseBar,
-                TextView presence,
                 TextView lastUpdate,
                 TextView score,
                 TextView status,
@@ -511,7 +500,6 @@ public class MainActivity extends AppCompatActivity {
             this.humidityBar = humidityBar;
             this.noise = noise;
             this.noiseBar = noiseBar;
-            this.presence = presence;
             this.lastUpdate = lastUpdate;
             this.score = score;
             this.status = status;
