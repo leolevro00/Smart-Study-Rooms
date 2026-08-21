@@ -4,8 +4,7 @@ Smart Study Rooms e un progetto universitario IoT per monitorare in tempo reale 
 
 Il progetto include:
 
-- un nodo ESP32 con Wi-Fi;
-- un nodo Arduino UNO senza Wi-Fi, collegato al PC via USB seriale;
+- due nodi Arduino UNO senza Wi-Fi, collegati al PC via USB seriale;
 - un bridge Python eseguito sul PC;
 - Firebase Realtime Database;
 - un'app Android nativa in Java/XML;
@@ -21,22 +20,26 @@ Usa questa legenda per saltare subito ai punti principali del progetto:
 2. [Configurare Firebase](#configurare-firebase)
 3. [Avviare il bridge Python](#1-avviare-il-bridge-python)
 4. [Test manuale senza hardware](#2-test-manuale-del-bridge-senza-hardware)
-5. [Configurare ESP32 per Aula 1](#3-configurare-esp32)
-6. [Configurare Arduino UNO per Aula 2](#4-configurare-arduino-uno-senza-wi-fi)
-7. [Avviare serial_to_bridge.py](#5-avviare-serial_to_bridgepy)
+5. [Configurare Arduino UNO per Aula 1](#3-configurare-arduino-uno-per-aula-1)
+6. [Configurare Arduino UNO per Aula 2](#4-configurare-arduino-uno-per-aula-2)
+7. [Avviare serial_to_bridge.py per entrambe le aule](#5-avviare-serial_to_bridgepy-per-entrambe-le-aule)
 8. [Avviare l'app Android](#6-avviare-lapp-android)
 9. [Predizioni ML based](#predizioni-ml-based)
 10. [Troubleshooting](#troubleshooting)
 
 ## Architettura del progetto
 
-L'architettura reale del progetto e questa:
+L'architettura reale attuale del progetto e questa:
 
 ```text
 Nodo Aula 1
-ESP32 + sensori
+Arduino UNO n.1 + sensori
         |
-        | HTTP Wi-Fi
+        | USB seriale
+        v
+serial_to_bridge.py sul PC
+        |
+        | HTTP locale
         v
 Bridge Python sul PC
         |
@@ -51,7 +54,7 @@ App Android
 
 ```text
 Nodo Aula 2
-Arduino UNO + sensori
+Arduino UNO n.2 + sensori
         |
         | USB seriale
         v
@@ -73,11 +76,11 @@ App Android
 In modo compatto:
 
 ```text
-ESP32 -> Wi-Fi HTTP -> Bridge Python -> Firebase -> Android
-Arduino UNO -> USB seriale -> serial_to_bridge.py -> Bridge Python -> Firebase -> Android
+Arduino UNO n.1 -> USB seriale -> serial_to_bridge.py -> Bridge Python -> Firebase -> Android
+Arduino UNO n.2 -> USB seriale -> serial_to_bridge.py -> Bridge Python -> Firebase -> Android
 ```
 
-Il bridge e il punto centrale del sistema. Riceve dati da sorgenti diverse, li valida, aggiunge un timestamp affidabile e aggiorna Firebase.
+Il bridge e il punto centrale del sistema. Riceve dati dai due script seriali, li valida, aggiunge un timestamp affidabile e aggiorna Firebase.
 
 ## Perche esiste il bridge
 
@@ -89,7 +92,7 @@ Serve a:
 - validare i dati prima di salvarli;
 - aggiungere `lastUpdate` lato PC/gateway;
 - salvare sia lo stato corrente sia lo storico;
-- unificare nodi diversi, cioe ESP32 via Wi-Fi e Arduino UNO via seriale;
+- unificare i due Arduino UNO collegati via seriale;
 - preparare il progetto a sviluppi futuri come AI, notifiche cloud o controllo remoto.
 
 In una versione reale, il bridge potrebbe girare su Raspberry Pi, server locale o cloud. In questo prototipo gira su PC.
@@ -113,14 +116,15 @@ In una versione reale, il bridge potrebbe girare su Raspberry Pi, server locale 
 |   +-- gradle.properties
 |   +-- settings.gradle
 +-- arduino/
-|   +-- SmartStudyRoomNode/           # Vecchio sketch Arduino Wi-Fi/direct/bridge
-|   +-- SmartStudyRoomSerialNode/     # Sketch Arduino UNO senza Wi-Fi
+|   +-- SmartStudyRoomNode/           # Sketch legacy/non usato nella demo attuale
+|   +-- SmartStudyRoomSerialNode/
+|       +-- SmartStudyRoomSerialNode1.ino  # Arduino UNO Aula 1
+|       +-- SmartStudyRoomSerialNode2.ino  # Arduino UNO Aula 2
 +-- bridge/
 |   +-- bridge_server.py              # Bridge HTTP -> Firebase
 |   +-- serial_to_bridge.py           # Lettura seriale Arduino UNO -> bridge
 |   +-- requirements.txt              # Dipendenza pyserial
-+-- esp32/
-|   +-- SmartStudyRoomEsp32Node/      # Sketch ESP32 Wi-Fi -> bridge
++-- esp32/                            # Codice sperimentale non usato nella demo attuale
 +-- firebase/
 |   +-- database.rules.json
 |   +-- sample-data.json
@@ -135,24 +139,9 @@ In una versione reale, il bridge potrebbe girare su Raspberry Pi, server locale 
 
 ### Aula 1
 
-Nodo consigliato:
+Nodo utilizzato:
 
-- ESP32 con Wi-Fi;
-- sensore temperatura/umidita DHT11 o DHT22;
-- sensore rumore analogico KY-037/KY-038 o simile;
-- sensore PIR opzionale.
-
-Sketch:
-
-```text
-esp32/SmartStudyRoomEsp32Node/SmartStudyRoomEsp32Node.ino
-```
-
-### Aula 2
-
-Nodo disponibile:
-
-- Arduino UNO senza modulo Wi-Fi;
+- Arduino UNO n.1 senza modulo Wi-Fi;
 - sensore temperatura/umidita DHT11 o DHT22;
 - sensore rumore analogico KY-037/KY-038 o simile;
 - sensore PIR opzionale;
@@ -161,7 +150,23 @@ Nodo disponibile:
 Sketch:
 
 ```text
-arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode.ino
+arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode1.ino
+```
+
+### Aula 2
+
+Nodo utilizzato:
+
+- Arduino UNO n.2 senza modulo Wi-Fi;
+- sensore temperatura/umidita DHT11 o DHT22;
+- sensore rumore analogico KY-037/KY-038 o simile;
+- sensore PIR opzionale;
+- collegamento USB al PC.
+
+Sketch:
+
+```text
+arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode2.ino
 ```
 
 ## Struttura Firebase
@@ -282,8 +287,8 @@ Servono:
 - Python 3;
 - Arduino IDE;
 - Android Studio;
-- eventuale driver USB per Arduino/ESP32;
-- librerie Arduino per DHT e, per ESP32, supporto scheda ESP32.
+- eventuale driver USB per Arduino;
+- librerie Arduino per DHT.
 
 ### Installare dipendenze Python
 
@@ -315,21 +320,22 @@ Controlla di avere:
 - Python installato;
 - dipendenze del bridge installate;
 - Android Studio pronto con emulatore o telefono fisico;
-- ESP32 configurato con SSID, password Wi-Fi e IP del PC;
-- Arduino UNO collegato via USB;
-- porta seriale dell'Arduino nota, ad esempio `COM3`, `COM4` o `/dev/ttyACM0`.
+- Arduino UNO n.1 collegato via USB;
+- Arduino UNO n.2 collegato via USB;
+- porta seriale del primo Arduino nota, ad esempio `COM3`;
+- porta seriale del secondo Arduino nota, ad esempio `COM4`.
 
 ### Ordine di avvio consigliato
 
 1. Apri Firebase Console e tieni d'occhio i nodi `rooms`, `history` e `predictions`.
 2. Apri il primo terminale e avvia il bridge Python.
 3. Verifica che il bridge risponda su `/health`.
-4. Collega Arduino UNO via USB.
-5. Apri il secondo terminale e avvia `serial_to_bridge.py`.
-6. Accendi ESP32 oppure carica lo sketch su ESP32.
+4. Collega Arduino UNO n.1 e Arduino UNO n.2 via USB.
+5. Apri il secondo terminale e avvia `serial_to_bridge.py` per `room1`.
+6. Apri il terzo terminale e avvia `serial_to_bridge.py` per `room2`.
 7. Controlla che Firebase riceva `rooms/room1` e `rooms/room2`.
 8. Apri Android Studio e avvia l'app.
-9. Se vuoi usare anche le predizioni, avvia `lm/predictor.py` in un terzo terminale.
+9. Se vuoi usare anche le predizioni, avvia `lm/predictor.py` in un altro terminale.
 10. Controlla che l'app mostri dati realtime, score, aula consigliata e predizioni.
 
 ### Terminale 1: bridge Python
@@ -371,26 +377,51 @@ Risultato atteso:
 
 Se questo test non funziona, non andare avanti: prima risolvi il bridge.
 
-### Terminale 2: Arduino UNO via seriale
+### Terminale 2: Arduino UNO Aula 1
 
-Dopo aver collegato Arduino UNO via USB, trova la porta seriale da Arduino IDE:
+Dopo aver collegato Arduino UNO n.1 via USB, trova la porta seriale da Arduino IDE:
 
 ```text
 Tools > Port
 ```
 
-Poi avvia il forwarder seriale.
+Poi avvia il forwarder seriale per `room1`.
 
 Esempio Windows:
 
 ```powershell
-py bridge\serial_to_bridge.py --port COM3 --room-id room2 --bridge-url http://localhost:3000
+py bridge\serial_to_bridge.py --port COM3 --room-id room1 --bridge-url http://localhost:3000
 ```
 
 Esempio Linux/WSL:
 
 ```bash
-python3 bridge/serial_to_bridge.py --port /dev/ttyACM0 --room-id room2 --bridge-url http://localhost:3000
+python3 bridge/serial_to_bridge.py --port /dev/ttyACM0 --room-id room1 --bridge-url http://localhost:3000
+```
+
+Se funziona, Firebase deve aggiornare:
+
+```text
+rooms/room1
+history/room1/<timestamp>
+```
+
+Lascia questo terminale aperto.
+
+### Terminale 3: Arduino UNO Aula 2
+
+Dopo aver collegato Arduino UNO n.2 via USB, trova la seconda porta seriale.
+
+Esempio Windows:
+
+```powershell
+py bridge\serial_to_bridge.py --port COM4 --room-id room2 --bridge-url http://localhost:3000
+```
+
+Esempio Linux/WSL:
+
+```bash
+python3 bridge/serial_to_bridge.py --port /dev/ttyACM1 --room-id room2 --bridge-url http://localhost:3000
 ```
 
 Se funziona, Firebase deve aggiornare:
@@ -400,41 +431,7 @@ rooms/room2
 history/room2/<timestamp>
 ```
 
-Lascia anche questo terminale aperto.
-
-### ESP32 per Aula 1
-
-Nel file:
-
-```text
-esp32/SmartStudyRoomEsp32Node/SmartStudyRoomEsp32Node.ino
-```
-
-controlla che siano configurati:
-
-```cpp
-const char* ROOM_ID = "room1";
-const char* ROOM_NAME = "Aula 1";
-const char* WIFI_SSID = "NOME_WIFI";
-const char* WIFI_PASSWORD = "PASSWORD_WIFI";
-const char* BRIDGE_HOST = "IP_DEL_PC";
-const int BRIDGE_PORT = 3000;
-```
-
-`BRIDGE_HOST` deve essere l'indirizzo IPv4 del PC su cui sta girando il bridge.
-
-Su Windows lo trovi con:
-
-```powershell
-ipconfig
-```
-
-Se ESP32 funziona, Firebase deve aggiornare:
-
-```text
-rooms/room1
-history/room1/<timestamp>
-```
+Lascia aperto anche questo terminale.
 
 ### Android app
 
@@ -458,7 +455,7 @@ Nella schermata principale dovresti vedere:
 - eventuali predizioni ML;
 - notifiche se il rumore supera la soglia.
 
-### Terminale 3 opzionale: predizioni ML
+### Terminale 4 opzionale: predizioni ML
 
 Se vuoi mostrare anche la parte AI based, avvia il predictor.
 
@@ -512,10 +509,10 @@ predictions
 1. Firebase aperto
 2. Terminale 1: bridge_server.py
 3. Browser: http://localhost:3000/health
-4. Terminale 2: serial_to_bridge.py per Arduino UNO
-5. ESP32 acceso
+4. Terminale 2: serial_to_bridge.py --room-id room1
+5. Terminale 3: serial_to_bridge.py --room-id room2
 6. Android Studio: Run app
-7. Terminale 3 opzionale: predictor.py --loop
+7. Terminale 4 opzionale: predictor.py --loop
 ```
 
 ## 1. Avviare il bridge Python
@@ -574,7 +571,7 @@ Dovresti vedere:
 {"status":"ok","service":"smart-study-rooms-bridge"}
 ```
 
-Se Arduino o ESP32 non riescono a contattare il bridge, controlla anche Windows Firewall. Se compare una richiesta di autorizzazione per Python, consenti l'accesso sulla rete privata.
+Se gli script Python non riescono a contattare il bridge, controlla anche Windows Firewall. Se compare una richiesta di autorizzazione per Python, consenti l'accesso sulla rete privata.
 
 ## 2. Test manuale del bridge senza hardware
 
@@ -601,89 +598,12 @@ rooms/room1
 history/room1/<timestamp>
 ```
 
-## 3. Configurare ESP32
-
-Apri Arduino IDE e installa il supporto ESP32:
-
-```text
-Tools > Board > Boards Manager
-```
-
-Cerca:
-
-```text
-esp32
-```
-
-Installa il pacchetto ESP32 by Espressif Systems.
+## 3. Configurare Arduino UNO per Aula 1
 
 Apri lo sketch:
 
 ```text
-esp32/SmartStudyRoomEsp32Node/SmartStudyRoomEsp32Node.ino
-```
-
-Configura:
-
-```cpp
-const char* ROOM_ID = "room1";
-const char* ROOM_NAME = "Aula 1";
-
-const char* WIFI_SSID = "YOUR_WIFI_SSID";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
-
-const char* BRIDGE_HOST = "192.168.1.50";
-const int BRIDGE_PORT = 3000;
-```
-
-`BRIDGE_HOST` deve essere l'IP del PC su cui gira il bridge.
-
-Su Windows lo trovi con:
-
-```powershell
-ipconfig
-```
-
-Cerca l'indirizzo IPv4 della scheda Wi-Fi, ad esempio:
-
-```text
-192.168.1.50
-```
-
-Per il primo test lascia:
-
-```cpp
-#define USE_SIMULATION 1
-```
-
-Cosi l'ESP32 genera dati finti senza sensori.
-
-Quando userai i sensori reali:
-
-```cpp
-#define USE_SIMULATION 0
-```
-
-Carica lo sketch sull'ESP32 e apri il Serial Monitor a:
-
-```text
-115200 baud
-```
-
-Se funziona vedrai messaggi simili:
-
-```text
-Connected. IP address: ...
-POST bridge http://192.168.1.50:3000/rooms/room1
-Bridge status: 200
-```
-
-## 4. Configurare Arduino UNO senza Wi-Fi
-
-Apri lo sketch:
-
-```text
-arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode.ino
+arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode1.ino
 ```
 
 Per il primo test lascia:
@@ -700,13 +620,57 @@ Quando userai i sensori reali:
 #define USE_SIMULATION 0
 ```
 
-Configura il nome aula se necessario:
+Controlla che il nome aula sia:
+
+```cpp
+const char* ROOM_NAME = "Aula 1";
+```
+
+Carica lo sketch su Arduino UNO n.1.
+
+Apri il Serial Monitor a:
+
+```text
+115200 baud
+```
+
+Dovresti vedere una riga JSON ogni 10 secondi:
+
+```json
+{"name":"Aula 1","temperature":22.4,"humidity":48.0,"noise":35,"presence":true}
+```
+
+Questa riga non va direttamente a Firebase. Viene letta dallo script `serial_to_bridge.py` con `--room-id room1`.
+
+## 4. Configurare Arduino UNO per Aula 2
+
+Apri lo sketch:
+
+```text
+arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode2.ino
+```
+
+Per il primo test lascia:
+
+```cpp
+#define USE_SIMULATION 1
+```
+
+Cosi Arduino genera dati finti senza sensori.
+
+Quando userai i sensori reali:
+
+```cpp
+#define USE_SIMULATION 0
+```
+
+Controlla che il nome aula sia:
 
 ```cpp
 const char* ROOM_NAME = "Aula 2";
 ```
 
-Carica lo sketch su Arduino UNO.
+Carica lo sketch su Arduino UNO n.2.
 
 Apri il Serial Monitor a:
 
@@ -720,44 +684,47 @@ Dovresti vedere una riga JSON ogni 10 secondi:
 {"name":"Aula 2","temperature":22.4,"humidity":48.0,"noise":35,"presence":true}
 ```
 
-Questa riga non va direttamente a Firebase. Viene letta dallo script `serial_to_bridge.py`.
+Questa riga non va direttamente a Firebase. Viene letta dallo script `serial_to_bridge.py` con `--room-id room2`.
 
-## 5. Avviare serial_to_bridge.py
+## 5. Avviare serial_to_bridge.py per entrambe le aule
 
 Lascia il bridge acceso nel primo terminale.
 
-In un secondo terminale avvia:
+Poi apri due terminali separati: uno per Aula 1 e uno per Aula 2.
+
+### Aula 1
+
+Esempio Windows:
 
 ```powershell
-py bridge\serial_to_bridge.py --port COM3 --room-id room2 --bridge-url http://localhost:3000
+py bridge\serial_to_bridge.py --port COM3 --room-id room1 --bridge-url http://localhost:3000
 ```
 
-`COM3` e solo un esempio. La porta corretta la trovi in Arduino IDE:
-
-```text
-Tools > Port
-```
-
-Esempi comuni:
-
-```text
-COM3
-COM4
-COM5
-```
-
-Su Linux/macOS potrebbe essere:
+Esempio Linux/WSL:
 
 ```bash
-python3 bridge/serial_to_bridge.py --port /dev/ttyACM0 --room-id room2 --bridge-url http://localhost:3000
+python3 bridge/serial_to_bridge.py --port /dev/ttyACM0 --room-id room1 --bridge-url http://localhost:3000
 ```
 
-Se funziona vedrai:
+Firebase verra aggiornato in:
 
 ```text
-Arduino serial forwarder started
-Serial <- {"name":"Aula 2",...}
-Bridge -> HTTP 200: {...}
+rooms/room1
+history/room1/<timestamp>
+```
+
+### Aula 2
+
+Esempio Windows:
+
+```powershell
+py bridge\serial_to_bridge.py --port COM4 --room-id room2 --bridge-url http://localhost:3000
+```
+
+Esempio Linux/WSL:
+
+```bash
+python3 bridge/serial_to_bridge.py --port /dev/ttyACM1 --room-id room2 --bridge-url http://localhost:3000
 ```
 
 Firebase verra aggiornato in:
@@ -766,6 +733,8 @@ Firebase verra aggiornato in:
 rooms/room2
 history/room2/<timestamp>
 ```
+
+Nota: `COM3` e `COM4` sono solo esempi. Le porte corrette le trovi in Arduino IDE da `Tools > Port`.
 
 ## 6. Avviare l'app Android
 
@@ -910,16 +879,6 @@ Sbagliato:
 https://smart-study-rooms-default-rtdb.europe-west1.firebasedatabase.app/
 ```
 
-### ESP32 non raggiunge il bridge
-
-Controlla:
-
-- ESP32 e PC devono essere sulla stessa rete Wi-Fi;
-- `BRIDGE_HOST` deve essere l'IP IPv4 del PC;
-- il bridge deve essere acceso;
-- Windows Firewall deve permettere a Python di ricevere connessioni;
-- prova dal browser `http://IP_DEL_PC:3000/health`.
-
 ### Arduino UNO non invia dati
 
 Controlla:
@@ -955,19 +914,19 @@ Se il progetto e lento o Gradle da problemi, aprilo da una cartella Windows loca
 
 Per testare tutto senza sensori reali:
 
-1. Imposta `USE_SIMULATION 1` su ESP32.
-2. Imposta `USE_SIMULATION 1` su Arduino UNO.
+1. Imposta `USE_SIMULATION 1` su Arduino UNO n.1.
+2. Imposta `USE_SIMULATION 1` su Arduino UNO n.2.
 3. Avvia il bridge.
-4. Avvia `serial_to_bridge.py`.
-5. Accendi ESP32.
+4. Avvia `serial_to_bridge.py` per `room1`.
+5. Avvia `serial_to_bridge.py` per `room2`.
 6. Controlla Firebase.
 7. Apri app Android.
 
 Se funziona, vedrai:
 
 ```text
-rooms/room1 aggiornato dall'ESP32
-rooms/room2 aggiornato dall'Arduino UNO via seriale
+rooms/room1 aggiornato dall'Arduino UNO n.1 via seriale
+rooms/room2 aggiornato dall'Arduino UNO n.2 via seriale
 history/room1 popolato
 history/room2 popolato
 app Android aggiornata in realtime
