@@ -119,11 +119,6 @@
                     android:progressTint="@color/chart_noise" />
 
                 <TextView
-                    android:id="@+id/room1Presence"
-                    style="@style/RoomMetricText"
-                    android:text="Presenza: N/D" />
-
-                <TextView
                     android:id="@+id/room1LastUpdate"
                     style="@style/RoomMetricText"
                     android:text="Ultimo aggiornamento: N/D" />
@@ -209,11 +204,6 @@
                     android:max="100"
                     android:progress="0"
                     android:progressTint="@color/chart_noise" />
-
-                <TextView
-                    android:id="@+id/room2Presence"
-                    style="@style/RoomMetricText"
-                    android:text="Presenza: N/D" />
 
                 <TextView
                     android:id="@+id/room2LastUpdate"

@@ -5,29 +5,27 @@ public final class RoomScoreCalculator {
     }
 
     public enum StudyPreference {
-        BALANCED("Bilanciata", 35, 35, 20, 10),
-        QUIET("Priorita silenzio", 20, 55, 15, 10),
-        THERMAL_COMFORT("Priorita comfort", 50, 25, 20, 5),
-        FREE_ROOM("Priorita aula libera", 25, 25, 15, 35);
+        BALANCED("Bilanciata", 35, 35, 20),
+        QUIET("Priorita silenzio", 20, 55, 15),
+        THERMAL_COMFORT("Priorita comfort", 50, 25, 20);
+
 
         private final String label;
         private final int temperatureWeight;
         private final int noiseWeight;
         private final int humidityWeight;
-        private final int presenceWeight;
+
 
         StudyPreference(
                 String label,
                 int temperatureWeight,
                 int noiseWeight,
-                int humidityWeight,
-                int presenceWeight
+                int humidityWeight
         ) {
             this.label = label;
             this.temperatureWeight = temperatureWeight;
             this.noiseWeight = noiseWeight;
             this.humidityWeight = humidityWeight;
-            this.presenceWeight = presenceWeight;
         }
 
         public String getLabel() {
@@ -49,8 +47,8 @@ public final class RoomScoreCalculator {
 
         int score = weightedScore(temperatureScore(room.getTemperature()), 35, preference.temperatureWeight)
                 + weightedScore(noiseScore(room.getNoise()), 35, preference.noiseWeight)
-                + weightedScore(humidityScore(room.getHumidity()), 20, preference.humidityWeight)
-                + weightedScore(presenceScore(room.getPresence()), 10, preference.presenceWeight);
+                + weightedScore(humidityScore(room.getHumidity()), 20, preference.humidityWeight);
+
 
         return clamp(score, 0, 100);
     }
@@ -72,10 +70,10 @@ public final class RoomScoreCalculator {
         if (noise == null) {
             return "N/D";
         }
-        if (noise <= 40) {
+        if (noise <= 10) {
             return "Basso";
         }
-        if (noise <= 60) {
+        if (noise <= 20) {
             return "Medio";
         }
         return "Alto";
@@ -101,13 +99,13 @@ public final class RoomScoreCalculator {
         if (noise == null) {
             return 0;
         }
-        if (noise <= 40) {
+        if (noise <= 10) {
             return 35;
         }
-        if (noise <= 60) {
+        if (noise <= 20) {
             return 22;
         }
-        if (noise <= 75) {
+        if (noise <= 30) {
             return 10;
         }
         return 3;
@@ -126,12 +124,7 @@ public final class RoomScoreCalculator {
         return 5;
     }
 
-    private static int presenceScore(Boolean presence) {
-        if (presence == null) {
-            return 5;
-        }
-        return presence ? 5 : 10;
-    }
+
 
     private static int weightedScore(int componentScore, int componentMax, int weight) {
         return Math.round((componentScore / (float) componentMax) * weight);
