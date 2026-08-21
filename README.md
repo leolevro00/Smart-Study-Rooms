@@ -23,9 +23,10 @@ Usa questa legenda per saltare subito ai punti principali del progetto:
 5. [Configurare Arduino UNO per Aula 1](#3-configurare-arduino-uno-per-aula-1)
 6. [Configurare Arduino UNO per Aula 2](#4-configurare-arduino-uno-per-aula-2)
 7. [Avviare serial_to_bridge.py per entrambe le aule](#5-avviare-serial_to_bridgepy-per-entrambe-le-aule)
-8. [Avviare l'app Android](#6-avviare-lapp-android)
-9. [Predizioni ML based](#predizioni-ml-based)
-10. [Troubleshooting](#troubleshooting)
+8. [Due PC, un solo bridge](#due-pc-un-solo-bridge)
+9. [Avviare l'app Android](#6-avviare-lapp-android)
+10. [Predizioni ML based](#predizioni-ml-based)
+11. [Troubleshooting](#troubleshooting)
 
 ## Architettura del progetto
 
@@ -735,6 +736,213 @@ history/room2/<timestamp>
 ```
 
 Nota: `COM3` e `COM4` sono solo esempi. Le porte corrette le trovi in Arduino IDE da `Tools > Port`.
+
+## Due PC, un solo bridge
+
+Se i due Arduino UNO sono collegati a due PC diversi, non devi per forza avviare due bridge.
+
+La soluzione consigliata e usare:
+
+```text
+PC 1 = PC bridge centrale
+PC 2 = PC secondario con Arduino collegato via USB
+```
+
+Il flusso diventa:
+
+```text
+Arduino Aula 1 -> USB -> PC 1 -> serial_to_bridge.py -> bridge PC 1 -> Firebase
+Arduino Aula 2 -> USB -> PC 2 -> serial_to_bridge.py -> bridge PC 1 -> Firebase
+```
+
+Quindi:
+
+- sul PC 1 avvii `bridge_server.py`;
+- sul PC 1 avvii anche `serial_to_bridge.py` per `room1`;
+- sul PC 2 avvii solo `serial_to_bridge.py` per `room2`;
+- il PC 2 invia i dati al bridge del PC 1 usando l'IP del PC 1.
+
+PC 1 e PC 2 devono essere collegati alla stessa rete Wi-Fi o LAN. Se sono su reti diverse, il PC 2 non riesce a raggiungere il bridge del PC 1.
+
+### 1. Trovare l'IP del PC bridge
+
+Sul PC che userai come bridge, devi trovare l'indirizzo IPv4 della scheda di rete.
+
+#### Windows
+
+Apri PowerShell o Prompt dei comandi e scrivi:
+
+```powershell
+ipconfig
+```
+
+Cerca la scheda Wi-Fi o Ethernet attiva e leggi:
+
+```text
+Indirizzo IPv4 . . . . . . . . . . . : 192.168.1.50
+```
+
+In questo esempio l'IP del PC bridge e:
+
+```text
+192.168.1.50
+```
+
+#### Linux
+
+Puoi usare:
+
+```bash
+ip addr
+```
+
+Cerca l'interfaccia Wi-Fi o Ethernet attiva. Spesso si chiama `wlan0`, `wlp...`, `eth0` o `enp...`.
+
+Esempio:
+
+```text
+inet 192.168.1.50/24
+```
+
+In alternativa puoi usare:
+
+```bash
+hostname -I
+```
+
+Il primo IP mostrato e spesso quello corretto della rete locale.
+
+#### WSL
+
+Se il bridge gira davvero dentro WSL, attenzione: l'IP di WSL non sempre coincide con l'IP del PC Windows.
+
+Per una demo semplice, conviene avviare il bridge da Windows PowerShell, non dentro WSL, cosi gli altri PC possono raggiungerlo piu facilmente usando l'IP Windows trovato con `ipconfig`.
+
+Se vuoi comunque avviare il bridge dentro WSL, puoi vedere l'IP di WSL con:
+
+```bash
+hostname -I
+```
+
+Pero potresti dover configurare port forwarding o firewall di Windows. Per questo, nella demo e piu semplice usare Python da Windows.
+
+### 2. Avviare il bridge sul PC 1
+
+Sul PC 1, cioe il PC bridge, avvia:
+
+```powershell
+py bridge\bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
+```
+
+Oppure su Linux:
+
+```bash
+python3 bridge/bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
+```
+
+Il bridge deve mostrare:
+
+```text
+Listening on http://0.0.0.0:3000
+```
+
+Questo significa che il bridge accetta connessioni non solo da `localhost`, ma anche dagli altri dispositivi della rete.
+
+### 3. Testare il bridge dal PC 1
+
+Sul PC 1 apri:
+
+```text
+http://localhost:3000/health
+```
+
+Risultato atteso:
+
+```json
+{"status":"ok","service":"smart-study-rooms-bridge"}
+```
+
+### 4. Testare il bridge dal PC 2
+
+Sul PC 2 apri nel browser:
+
+```text
+http://IP_DEL_PC_1:3000/health
+```
+
+Esempio:
+
+```text
+http://192.168.1.50:3000/health
+```
+
+Se vedi la risposta `status: ok`, allora PC 2 riesce a raggiungere il bridge.
+
+Se non funziona, controlla:
+
+- PC 1 e PC 2 devono essere sulla stessa rete;
+- il bridge deve essere acceso sul PC 1;
+- Windows Firewall deve permettere a Python di ricevere connessioni sulla rete privata;
+- l'IP usato deve essere quello corretto del PC 1.
+
+### 5. Avviare Arduino Aula 1 sul PC 1
+
+Sul PC 1, con Arduino Aula 1 collegato via USB:
+
+```powershell
+py bridge\serial_to_bridge.py --port COM3 --room-id room1 --bridge-url http://localhost:3000
+```
+
+Su Linux:
+
+```bash
+python3 bridge/serial_to_bridge.py --port /dev/ttyACM0 --room-id room1 --bridge-url http://localhost:3000
+```
+
+Questo aggiorna Firebase in:
+
+```text
+rooms/room1
+history/room1/<timestamp>
+```
+
+### 6. Avviare Arduino Aula 2 sul PC 2
+
+Sul PC 2, con Arduino Aula 2 collegato via USB, devi puntare al bridge del PC 1.
+
+Esempio Windows:
+
+```powershell
+py bridge\serial_to_bridge.py --port COM3 --room-id room2 --bridge-url http://192.168.1.50:3000
+```
+
+Esempio Linux:
+
+```bash
+python3 bridge/serial_to_bridge.py --port /dev/ttyACM0 --room-id room2 --bridge-url http://192.168.1.50:3000
+```
+
+Sostituisci `192.168.1.50` con l'IP reale del PC 1.
+
+Questo aggiorna Firebase in:
+
+```text
+rooms/room2
+history/room2/<timestamp>
+```
+
+### Riassunto due PC
+
+```text
+PC 1:
+  bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
+  serial_to_bridge.py --port COM3 --room-id room1 --bridge-url http://localhost:3000
+
+PC 2:
+  serial_to_bridge.py --port COM3 --room-id room2 --bridge-url http://IP_DEL_PC_1:3000
+```
+
+In questo modo il progetto mantiene un'architettura pulita: un solo bridge centrale e due nodi sensore distribuiti.
 
 ## 6. Avviare l'app Android
 
