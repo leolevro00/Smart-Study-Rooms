@@ -10,8 +10,8 @@ const char* ROOM_NAME = "Aula 2";
 const int DHT_PIN = 2;
 const int DHT_TYPE = DHT22; // Change to DHT11 if needed.
 const int NOISE_PIN = A1; // Connect the analog output AO of the noise sensor here.
-const int GREEN_LED_PIN = 13; //Led for cooling
-const int RED_LED_PIN = 12; //Led for heating
+const int GREEN_LED_PIN = 12; //Led for cooling
+const int RED_LED_PIN = 13; //Led for heating
 
 
 // Noise calibration. The sketch samples the microphone for a short window and
