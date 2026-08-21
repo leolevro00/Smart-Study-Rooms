@@ -1,4 +1,4 @@
-﻿#include <DHT.h>
+#include <DHT.h>
 
 // Set 1 to test the serial bridge without physical sensors, 0 to read real sensors.
 #define USE_SIMULATION 0
@@ -9,8 +9,13 @@ const char* ROOM_NAME = "Aula 2";
 // Sensor pins. Adjust according to your wiring.
 const int DHT_PIN = 2;
 const int DHT_TYPE = DHT22; // Change to DHT11 if needed.
-const int NOISE_PIN = A1; // Set properly
+const int NOISE_PIN = A1; // Connect the analog output AO of the noise sensor here.
 
+// Noise calibration. The sketch samples the microphone for a short window and
+// converts the peak-to-peak variation to a 0..100 level.
+const unsigned long NOISE_SAMPLE_WINDOW_MS = 80;
+const int NOISE_RAW_MIN = 5;
+const int NOISE_RAW_MAX = 120;
 
 const unsigned long SEND_INTERVAL_MS = 10000;
 
@@ -64,13 +69,29 @@ RoomReading readSensors() {
     reading.humidity = -1.0;
   }
 
-  int rawNoise = analogRead(NOISE_PIN);
-  reading.noise = map(rawNoise, 0, 1023, 0, 100);
-  reading.noise = constrain(reading.noise, 0, 100);
-
-
+  reading.noise = readNoiseLevel();
 
   return reading;
+}
+
+int readNoiseLevel() {
+  int signalMin = 1023;
+  int signalMax = 0;
+  unsigned long startMs = millis();
+
+  while (millis() - startMs < NOISE_SAMPLE_WINDOW_MS) {
+    int sample = analogRead(NOISE_PIN);
+    if (sample < signalMin) {
+      signalMin = sample;
+    }
+    if (sample > signalMax) {
+      signalMax = sample;
+    }
+  }
+
+  int peakToPeak = signalMax - signalMin;
+  int level = map(peakToPeak, NOISE_RAW_MIN, NOISE_RAW_MAX, 0, 100);
+  return constrain(level, 0, 100);
 }
 
 RoomReading simulateReading() {
