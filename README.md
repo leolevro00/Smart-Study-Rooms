@@ -1260,6 +1260,73 @@ history/room2 popolato
 app Android aggiornata in realtime
 ```
 
+## Lettura e calibrazione del rumore
+
+Il sensore KY-037/KY-038 non restituisce direttamente i decibel. Nel progetto viene letto il pin analogico `AO` e Arduino calcola una stima del rumore su scala 0-100.
+
+La logica nello sketch e questa:
+
+```text
+1. per 80 ms Arduino legge tanti campioni analogici da A1
+2. trova il valore minimo e massimo della finestra
+3. calcola peakToPeak = massimo - minimo
+4. converte peakToPeak nella scala noise 0-100
+5. durante i 10 secondi tra due invii conserva il picco piu alto
+6. invia a Firebase solo il picco massimo degli ultimi 10 secondi
+```
+
+Quindi se parli forte per un istante durante quei 10 secondi, il sistema dovrebbe conservare il picco e inviarlo al giro successivo.
+
+I parametri principali sono negli sketch Arduino:
+
+```cpp
+const unsigned long NOISE_SAMPLE_WINDOW_MS = 80;
+const int NOISE_RAW_MIN = 0;
+const int NOISE_RAW_MAX = 8;
+```
+
+`NOISE_RAW_MIN` indica sotto quale variazione il rumore viene considerato nullo. Con valore `0` la sensibilita e massima. `NOISE_RAW_MAX` indica quale variazione analogica corrisponde a 100/100. Con valore `8` anche variazioni piccole vengono amplificate molto.
+
+Se il rumore resta spesso a 0 anche parlando vicino al sensore, prova questa procedura:
+
+1. imposta temporaneamente nello sketch:
+
+```cpp
+#define NOISE_DEBUG 1
+```
+
+2. ricarica lo sketch su Arduino;
+3. guarda nel terminale di `serial_to_bridge.py` il campo `noisePeak`;
+4. parla vicino al sensore e osserva quanto sale `noisePeak`.
+
+Esempio:
+
+```json
+{"name":"Aula 1","temperature":22.4,"humidity":48.0,"noise":17,"noisePeak":7}
+```
+
+Se `noisePeak` resta sempre 0 o 1, il problema e probabilmente hardware/cablaggio/sensibilita del modulo. Controlla:
+
+- usare il pin analogico `AO`, non `DO`;
+- `AO` collegato ad `A1`;
+- `VCC` e `GND` corretti;
+- microfono orientato correttamente;
+- eventuale trimmer del modulo, se presente;
+- provare un altro sensore, perche alcuni moduli economici hanno uscita analogica molto debole.
+
+Se `noisePeak` sale ma `noise` resta troppo basso, abbassa ancora `NOISE_RAW_MAX`. Nel progetto e gia impostato a `8`, quindi la sensibilita e molto alta. Puoi provare anche:
+
+```cpp
+const int NOISE_RAW_MAX = 5;
+```
+
+Se invece il rumore risulta troppo alto anche in silenzio, e normale: questa taratura privilegia la cattura di rumori piccoli tipici di un aula studio. Per ridurre i falsi positivi, alza `NOISE_RAW_MAX` oppure `NOISE_RAW_MIN`.
+
+Quando hai finito la calibrazione, rimetti:
+
+```cpp
+#define NOISE_DEBUG 0
+```
 ## Possibili sviluppi futuri
 
 - Bridge su Raspberry Pi come gateway locale sempre acceso.
