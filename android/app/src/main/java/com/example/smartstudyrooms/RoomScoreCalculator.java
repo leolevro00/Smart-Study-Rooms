@@ -5,11 +5,12 @@ public final class RoomScoreCalculator {
     }
 
     public enum StudyPreference {
-        BALANCED("Bilanciata", 35, 35, 20),
-        QUIET("Priorita silenzio", 20, 55, 15),
-        THERMAL_COMFORT("Priorita comfort", 50, 25, 20);
+        BALANCED("balanced", "Bilanciata", 35, 35, 20),
+        QUIET("quiet", "Priorita silenzio", 20, 55, 15),
+        THERMAL_COMFORT("comfort", "Priorita comfort", 50, 25, 20);
 
 
+        private final String firebaseKey;
         private final String label;
         private final int temperatureWeight;
         private final int noiseWeight;
@@ -17,11 +18,13 @@ public final class RoomScoreCalculator {
 
 
         StudyPreference(
+                String firebaseKey,
                 String label,
                 int temperatureWeight,
                 int noiseWeight,
                 int humidityWeight
         ) {
+            this.firebaseKey = firebaseKey;
             this.label = label;
             this.temperatureWeight = temperatureWeight;
             this.noiseWeight = noiseWeight;
@@ -30,6 +33,10 @@ public final class RoomScoreCalculator {
 
         public String getLabel() {
             return label;
+        }
+
+        public String getFirebaseKey() {
+            return firebaseKey;
         }
     }
 

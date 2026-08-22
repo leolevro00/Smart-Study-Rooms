@@ -39,9 +39,9 @@ def get_json(url):
     return request_json(url, method="GET")
 
 
-def apply_actuator_state(serial_port, state, last_state):
+def apply_actuator_state(serial_port, state, last_state, force=False):
     best_room_led = bool(state.get("bestRoomLed", False))
-    if best_room_led == last_state:
+    if best_room_led == last_state and not force:
         return last_state
 
     command = "BEST_LED_ON" if best_room_led else "BEST_LED_OFF"
@@ -118,6 +118,7 @@ def main():
                         serial_port,
                         actuator_state,
                         last_best_led_state,
+                        force=True,
                     )
                 except urllib.error.URLError as exc:
                     print(f"Actuator poll failed: {exc}")

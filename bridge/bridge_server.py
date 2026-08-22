@@ -21,6 +21,26 @@ ROOM_NAMES = {
     "room1": "Aula 1",
     "room2": "Aula 2",
 }
+STUDY_PREFERENCES = {
+    "balanced": {
+        "label": "Bilanciata",
+        "temperatureWeight": 35,
+        "noiseWeight": 35,
+        "humidityWeight": 20,
+    },
+    "comfort": {
+        "label": "Priorita comfort",
+        "temperatureWeight": 50,
+        "noiseWeight": 25,
+        "humidityWeight": 20,
+    },
+    "quiet": {
+        "label": "Priorita silenzio",
+        "temperatureWeight": 20,
+        "noiseWeight": 55,
+        "humidityWeight": 15,
+    },
+}
 
 
 class ValidationError(Exception):
@@ -41,30 +61,45 @@ class BridgeConfig:
 
 
 class BridgeState:
-    def __init__(self):
+    def __init__(self, preference="balanced"):
+        self.preference = preference
         self.rooms = {}
         self.scores = {}
         self.best_room_id = None
-        self.actuators = {}
+        self.actuators = {
+            room_id: {"bestRoomLed": False}
+            for room_id in ROOM_NAMES.keys()
+        }
 
     def update_room(self, room_id, payload):
         self.rooms[room_id] = payload
         self.recalculate()
 
+    def set_preference(self, preference):
+        if preference not in STUDY_PREFERENCES or preference == self.preference:
+            return False
+        self.preference = preference
+        self.recalculate()
+        return True
+
     def recalculate(self):
         self.scores = {
-            room_id: calculate_room_score(payload)
+            room_id: calculate_room_score(payload, self.preference)
             for room_id, payload in self.rooms.items()
         }
         if not self.scores:
             self.best_room_id = None
-            self.actuators = {}
+            self.actuators = {
+                room_id: {"bestRoomLed": False}
+                for room_id in ROOM_NAMES.keys()
+            }
             return
 
         self.best_room_id = max(self.scores, key=self.scores.get)
+        all_room_ids = set(ROOM_NAMES.keys()) | set(self.rooms.keys())
         self.actuators = {
             room_id: {"bestRoomLed": room_id == self.best_room_id}
-            for room_id in self.rooms.keys()
+            for room_id in all_room_ids
         }
 
     def actuator_state(self, room_id):
@@ -76,6 +111,8 @@ class BridgeState:
         payload = {
             "bestRoomId": self.best_room_id,
             "bestRoomName": ROOM_NAMES.get(self.best_room_id, self.best_room_id),
+            "preference": self.preference,
+            "preferenceLabel": STUDY_PREFERENCES[self.preference]["label"],
             "updatedAt": int(time.time() * 1000),
         }
         for room_id, score in self.scores.items():
@@ -127,16 +164,17 @@ def validate_payload(room_id, payload):
     return clean_payload
 
 
-def calculate_room_score(room):
-    # Mirrors Android RoomScoreCalculator.calculateScore(room, BALANCED).
+def calculate_room_score(room, preference="balanced"):
+    # Mirrors Android RoomScoreCalculator weights for the selected preference.
     temperature_score = score_temperature(room.get("temperature"))
     noise_score = score_noise(room.get("noise"))
     humidity_score = score_humidity(room.get("humidity"))
 
+    weights = STUDY_PREFERENCES[preference]
     score = (
-        weighted_score(temperature_score, 35, 35)
-        + weighted_score(noise_score, 35, 35)
-        + weighted_score(humidity_score, 20, 20)
+        weighted_score(temperature_score, 35, weights["temperatureWeight"])
+        + weighted_score(noise_score, 35, weights["noiseWeight"])
+        + weighted_score(humidity_score, 20, weights["humidityWeight"])
     )
     return max(0, min(100, score))
 
@@ -176,16 +214,26 @@ def weighted_score(component_score, component_max, weight):
     return int((component_score / component_max) * weight + 0.5)
 
 
-def put_json(url, payload):
-    data = json.dumps(payload).encode("utf-8")
+def request_json(url, method="GET", payload=None):
+    data = None if payload is None else json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         url=url,
         data=data,
-        method="PUT",
+        method=method,
         headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(request, timeout=10) as response:
-        return response.status, response.read().decode("utf-8")
+        raw_body = response.read().decode("utf-8")
+        return response.status, raw_body, json.loads(raw_body or "null")
+
+
+def put_json(url, payload):
+    status, raw_body, _ = request_json(url, method="PUT", payload=payload)
+    return status, raw_body
+
+
+def get_json(url):
+    return request_json(url, method="GET")
 
 
 class BridgeRequestHandler(BaseHTTPRequestHandler):
@@ -198,6 +246,8 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
             return
         actuator_room_id = self.extract_actuator_room_id()
         if actuator_room_id:
+            self.refresh_preference_from_firebase()
+            self.publish_recommendation_and_actuators()
             self.write_json(200, self.state.actuator_state(actuator_room_id))
             return
         self.write_json(404, {"error": "endpoint non trovato"})
@@ -217,20 +267,10 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 history_url = self.config.firebase_url(f"history/{room_id}/{timestamp}")
                 history_status, _ = put_json(history_url, clean_payload)
 
+            self.refresh_preference_from_firebase()
             self.state.update_room(room_id, clean_payload)
+            recommendation_status = self.publish_recommendation_and_actuators()
             actuator_status = self.state.actuator_state(room_id)
-            recommendation_status = None
-            recommendation = self.state.recommendation_payload()
-            if recommendation:
-                recommendation_status, _ = put_json(
-                    self.config.firebase_url("recommendation"),
-                    recommendation,
-                )
-                for actuator_room_id, actuator_payload in self.state.actuators.items():
-                    put_json(
-                        self.config.firebase_url(f"actuators/{actuator_room_id}"),
-                        actuator_payload,
-                    )
 
             self.write_json(
                 200,
@@ -252,6 +292,30 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
             self.write_json(502, {"error": f"errore Firebase: {exc}"})
         except Exception as exc:
             self.write_json(500, {"error": f"errore bridge: {exc}"})
+
+    def refresh_preference_from_firebase(self):
+        try:
+            _, _, preference = get_json(self.config.firebase_url("settings/studyPreference"))
+        except urllib.error.URLError:
+            return False
+        if not isinstance(preference, str):
+            return False
+        return self.state.set_preference(preference)
+
+    def publish_recommendation_and_actuators(self):
+        recommendation = self.state.recommendation_payload()
+        if not recommendation:
+            return None
+        recommendation_status, _ = put_json(
+            self.config.firebase_url("recommendation"),
+            recommendation,
+        )
+        for actuator_room_id, actuator_payload in self.state.actuators.items():
+            put_json(
+                self.config.firebase_url(f"actuators/{actuator_room_id}"),
+                actuator_payload,
+            )
+        return recommendation_status
 
     def extract_room_id(self):
         path = urllib.parse.urlparse(self.path).path.strip("/")
@@ -301,6 +365,12 @@ def main():
     parser.add_argument("--host", default="0.0.0.0", help="Bridge bind address. Default: 0.0.0.0")
     parser.add_argument("--port", type=int, default=3000, help="Bridge port. Default: 3000")
     parser.add_argument("--no-history", action="store_true", help="Disable writes under history/")
+    parser.add_argument(
+        "--study-preference",
+        choices=sorted(STUDY_PREFERENCES.keys()),
+        default="balanced",
+        help="Initial preference used before the app writes settings/studyPreference. Values: balanced, comfort or quiet. Default: balanced",
+    )
     args = parser.parse_args()
 
     BridgeRequestHandler.config = BridgeConfig(
@@ -308,12 +378,15 @@ def main():
         auth_token=args.auth,
         save_history=not args.no_history,
     )
+    BridgeRequestHandler.state = BridgeState(preference=args.study_preference)
 
     server = ThreadingHTTPServer((args.host, args.port), BridgeRequestHandler)
     print("Smart Study Rooms bridge started")
     print(f"Listening on http://{args.host}:{args.port}")
     print(f"Firebase: https://{args.database_host.rstrip('/')}")
     print(f"History enabled: {not args.no_history}")
+    print(f"Initial study preference: {args.study_preference} ({STUDY_PREFERENCES[args.study_preference]['label']})")
+    print("Firebase preference path: settings/studyPreference")
     print("Press CTRL+C to stop")
 
     try:

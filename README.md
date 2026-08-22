@@ -243,13 +243,21 @@ La logica e questa:
 ```text
 Arduino room1 -> serial_to_bridge -> bridge
 Arduino room2 -> serial_to_bridge -> bridge
-bridge calcola score room1 e room2 con la stessa logica Android bilanciata
+bridge calcola score room1 e room2 con la stessa logica Android e con la preferenza scelta all avvio
 bridge decide bestRoomId
 bridge salva recommendation e actuators su Firebase
 serial_to_bridge legge /actuators/<room_id>
 serial_to_bridge manda BEST_LED_ON oppure BEST_LED_OFF ad Arduino
 Arduino accende o spegne il LED giallo
 ```
+
+La preferenza scelta dall app viene salvata in Firebase:
+
+```text
+settings/studyPreference = balanced | comfort | quiet
+```
+
+Il bridge legge questo valore e ricalcola l aula migliore con gli stessi pesi usati dall app.
 
 Il bridge garantisce che nello stato logico solo una stanza abbia:
 
@@ -266,6 +274,8 @@ Esempio su Firebase:
     "bestRoomName": "Aula 1",
     "room1Score": 87,
     "room2Score": 61,
+    "preference": "quiet",
+    "preferenceLabel": "Priorita silenzio",
     "updatedAt": 1710000000000
   },
   "actuators": {
@@ -292,7 +302,7 @@ BEST_LED_ON
 BEST_LED_OFF
 ```
 
-Non serve modificare l app Android per questa feature: l app continua a leggere Firebase e mostrare score/aula consigliata. La decisione fisica dei LED viene gestita dal bridge, cosi funziona anche se l app non e aperta. Nota: se in app scegli una preferenza diversa da `Bilanciata`, il LED giallo continua a seguire la logica bilanciata del bridge.
+Non serve modificare l app Android per questa feature: l app continua a leggere Firebase e mostrare score/aula consigliata. La decisione fisica dei LED viene gestita dal bridge, cosi funziona anche se l app non e aperta. La preferenza del LED giallo viene letta da Firebase da `settings/studyPreference`, quindi quando cambi preferenza dall app cambia anche la logica del bridge. Il parametro `--study-preference` resta solo come valore iniziale se l app non ha ancora scritto nulla.
 Il bridge salva anche uno storico:
 
 ```text
@@ -435,10 +445,18 @@ Da Windows PowerShell, nella root del progetto:
 py bridge\bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
 ```
 
+Puoi anche scegliere la preferenza usata dal bridge per decidere quale LED giallo accendere:
+
+```powershell
+py bridge\bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app --study-preference balanced
+py bridge\bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app --study-preference comfort
+py bridge\bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app --study-preference quiet
+```
+
 Da WSL/Linux:
 
 ```bash
-python3 bridge/bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
+python3 bridge/bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app --study-preference balanced
 ```
 
 Se funziona, il bridge deve mostrare:
@@ -582,6 +600,9 @@ rooms
 history
   room1
   room2
+
+settings
+  studyPreference
 
 recommendation
 actuators
@@ -937,6 +958,8 @@ Il bridge deve mostrare:
 
 ```text
 Listening on http://0.0.0.0:3000
+Initial study preference: balanced
+Firebase preference path: settings/studyPreference
 ```
 
 Questo significa che il bridge accetta connessioni non solo da `localhost`, ma anche dagli altri dispositivi della rete.

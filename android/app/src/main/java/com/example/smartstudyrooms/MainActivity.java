@@ -38,6 +38,7 @@ public class MainActivity extends AppCompatActivity {
 
     private DatabaseReference roomsRef;
     private DatabaseReference predictionsRef;
+    private DatabaseReference studyPreferenceRef;
     private ValueEventListener roomsListener;
     private ValueEventListener predictionsListener;
 
@@ -67,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
         FirebaseDatabase database = FirebaseDatabase.getInstance("https://smartstudyrooms-659ff-default-rtdb.europe-west1.firebasedatabase.app");
         roomsRef = database.getReference("rooms");
         predictionsRef = database.getReference("predictions");
+        studyPreferenceRef = database.getReference("settings/studyPreference");
         listenForRooms();
         listenForPredictions();
     }
@@ -142,6 +144,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 selectedPreference = preferences[position];
+                publishStudyPreference(selectedPreference);
                 updateRoom(room1Views, room1, "Aula 1");
                 updateRoom(room2Views, room2, "Aula 2");
                 updateRecommendation();
@@ -152,6 +155,13 @@ public class MainActivity extends AppCompatActivity {
                 selectedPreference = RoomScoreCalculator.StudyPreference.BALANCED;
             }
         });
+    }
+
+    private void publishStudyPreference(RoomScoreCalculator.StudyPreference preference) {
+        if (studyPreferenceRef == null || preference == null) {
+            return;
+        }
+        studyPreferenceRef.setValue(preference.getFirebaseKey());
     }
 
     private void listenForRooms() {
