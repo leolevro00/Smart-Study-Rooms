@@ -108,9 +108,12 @@ class BridgeState:
     def recommendation_payload(self):
         if not self.best_room_id:
             return None
+        best_score = self.scores[self.best_room_id]
         payload = {
             "bestRoomId": self.best_room_id,
             "bestRoomName": ROOM_NAMES.get(self.best_room_id, self.best_room_id),
+            "bestScore": best_score,
+            "recommendationStatus": recommendation_status_for_score(best_score),
             "preference": self.preference,
             "preferenceLabel": STUDY_PREFERENCES[self.preference]["label"],
             "updatedAt": int(time.time() * 1000),
@@ -164,6 +167,14 @@ def validate_payload(room_id, payload):
     return clean_payload
 
 
+def recommendation_status_for_score(score):
+    if score < 40:
+        return "none"
+    if score < 60:
+        return "least_problematic"
+    return "recommended"
+
+
 def calculate_room_score(room, preference="balanced"):
     # Mirrors Android RoomScoreCalculator weights for the selected preference.
     temperature_score = score_temperature(room.get("temperature"))
@@ -191,14 +202,8 @@ def score_temperature(temperature):
 
 
 def score_noise(noise):
-    noise = float(noise)
-    if noise <= 10:
-        return 35
-    if noise <= 20:
-        return 22
-    if noise <= 30:
-        return 10
-    return 3
+    noise = max(0.0, min(100.0, float(noise)))
+    return int(35 - (noise / 100.0) * 35 + 0.5)
 
 
 def score_humidity(humidity):

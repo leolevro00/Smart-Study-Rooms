@@ -1146,6 +1146,27 @@ L'utente puo cambiare preferenza di studio:
 
 La preferenza modifica i pesi dello score.
 
+
+### Punteggio rumore nello score
+
+Il punteggio del rumore non usa piu soglie rigide a scaglioni. Viene calcolato in modo continuo: piu il valore `noise` sale, piu il punteggio rumore scende.
+
+Questo e importante soprattutto con la preferenza `Priorita silenzio`: se Aula 1 ha rumore 50 e Aula 2 ha rumore 79, Aula 1 deve essere preferita perche e effettivamente piu silenziosa, anche se entrambe sono classificate come rumorose.
+
+Formula concettuale:
+
+```text
+noiseScore = 35 - (noise / 100) * 35
+```
+
+Quindi:
+
+```text
+noise 0   -> punteggio rumore 35/35
+noise 50  -> punteggio rumore circa 18/35
+noise 79  -> punteggio rumore circa 7/35
+noise 100 -> punteggio rumore 0/35
+```
 ## Notifiche Android
 
 L'app puo inviare notifiche locali quando il rumore supera la soglia:

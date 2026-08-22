@@ -245,7 +245,7 @@ public class MainActivity extends AppCompatActivity {
         views.noiseBar.setProgress(progressValue(room.getNoise(), 100));
         views.lastUpdate.setText("Ultimo aggiornamento: " + formatTimestamp(room.getLastUpdate()));
         views.score.setText("Score: " + score + "/100");
-        views.status.setText("Stato: " + status);
+        views.status.setText("Qualita: " + status);
         views.card.setCardBackgroundColor(getColorForStatus(status));
     }
 
@@ -273,7 +273,7 @@ public class MainActivity extends AppCompatActivity {
         views.noiseBar.setProgress(0);
         views.lastUpdate.setText("Ultimo aggiornamento: N/D");
         views.score.setText("Score: N/D");
-        views.status.setText("Stato: dati non disponibili");
+        views.status.setText("Qualita: dati non disponibili");
         clearPrediction(views);
         views.card.setCardBackgroundColor(getColor(R.color.card_neutral));
     }
@@ -308,8 +308,21 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        int bestScore = Math.max(room1Score, room2Score);
         Room bestRoom = room1Score > room2Score ? room1 : room2;
-        recommendedRoomText.setText("Aula consigliata: " + valueOrFallback(bestRoom.getName(), "Aula"));
+        String bestRoomName = valueOrFallback(bestRoom.getName(), "Aula");
+
+        if (bestScore < 40) {
+            recommendedRoomText.setText("Nessuna aula consigliata. Meno critica: " + bestRoomName);
+            return;
+        }
+
+        if (bestScore < 60) {
+            recommendedRoomText.setText("Aula meno problematica: " + bestRoomName);
+            return;
+        }
+
+        recommendedRoomText.setText("Aula consigliata: " + bestRoomName);
     }
 
     private void evaluateNoiseAlert(String roomId, Room room, String fallbackName) {

@@ -106,16 +106,8 @@ public final class RoomScoreCalculator {
         if (noise == null) {
             return 0;
         }
-        if (noise <= 10) {
-            return 35;
-        }
-        if (noise <= 20) {
-            return 22;
-        }
-        if (noise <= 30) {
-            return 10;
-        }
-        return 3;
+        double clampedNoise = Math.max(0, Math.min(100, noise));
+        return Math.round((float) (35 - (clampedNoise / 100.0) * 35));
     }
 
     private static int humidityScore(Double humidity) {
