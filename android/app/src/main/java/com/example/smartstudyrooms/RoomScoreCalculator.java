@@ -5,17 +5,15 @@ public final class RoomScoreCalculator {
     }
 
     public enum StudyPreference {
-        BALANCED("balanced", "Bilanciata", 35, 35, 20),
-        QUIET("quiet", "Priorita silenzio", 20, 55, 15),
-        THERMAL_COMFORT("comfort", "Priorita comfort", 50, 25, 20);
-
+        BALANCED("balanced", "Bilanciata", 35, 40, 25),
+        QUIET("quiet", "Priorita silenzio", 10, 85, 5),
+        THERMAL_COMFORT("comfort", "Priorita comfort", 55, 25, 20);
 
         private final String firebaseKey;
         private final String label;
         private final int temperatureWeight;
         private final int noiseWeight;
         private final int humidityWeight;
-
 
         StudyPreference(
                 String firebaseKey,
@@ -52,12 +50,11 @@ public final class RoomScoreCalculator {
             preference = StudyPreference.BALANCED;
         }
 
-        int score = weightedScore(temperatureScore(room.getTemperature()), 35, preference.temperatureWeight)
-                + weightedScore(noiseScore(room.getNoise()), 35, preference.noiseWeight)
-                + weightedScore(humidityScore(room.getHumidity()), 20, preference.humidityWeight);
+        double score = weightedScore(temperatureScore(room.getTemperature()), preference.temperatureWeight)
+                + weightedScore(noiseScore(room.getNoise()), preference.noiseWeight)
+                + weightedScore(humidityScore(room.getHumidity()), preference.humidityWeight);
 
-
-        return clamp(score, 0, 100);
+        return clamp((int) Math.round(score), 0, 100);
     }
 
     public static String getStatus(int score) {
@@ -77,59 +74,64 @@ public final class RoomScoreCalculator {
         if (noise == null) {
             return "N/D";
         }
-        if (noise <= 10) {
+        if (noise <= 35) {
             return "Basso";
         }
-        if (noise <= 20) {
+        if (noise <= 65) {
             return "Medio";
         }
         return "Alto";
     }
 
-    private static int temperatureScore(Double temperature) {
+    private static double temperatureScore(Double temperature) {
         if (temperature == null) {
             return 0;
         }
-        if (temperature >= 20 && temperature <= 23) {
-            return 35;
+        double value = temperature;
+        if (value >= 20 && value <= 23) {
+            return 100;
         }
-        if (temperature >= 18 && temperature <= 25) {
-            return 25;
+        if (value < 20) {
+            return linearScore(value, 16, 20);
         }
-        if (temperature >= 16 && temperature <= 28) {
-            return 15;
-        }
-        return 5;
+        return linearScore(value, 30, 23);
     }
 
-    private static int noiseScore(Double noise) {
+    private static double noiseScore(Double noise) {
         if (noise == null) {
             return 0;
         }
-        double clampedNoise = Math.max(0, Math.min(100, noise));
-        return Math.round((float) (35 - (clampedNoise / 100.0) * 35));
+        return 100 - clamp(noise, 0, 100);
     }
 
-    private static int humidityScore(Double humidity) {
+    private static double humidityScore(Double humidity) {
         if (humidity == null) {
             return 0;
         }
-        if (humidity >= 40 && humidity <= 60) {
-            return 20;
+        double value = humidity;
+        if (value >= 40 && value <= 60) {
+            return 100;
         }
-        if (humidity >= 30 && humidity <= 70) {
-            return 12;
+        if (value < 40) {
+            return linearScore(value, 20, 40);
         }
-        return 5;
+        return linearScore(value, 80, 60);
     }
 
+    private static double linearScore(double value, double zeroPoint, double fullPoint) {
+        double score = ((value - zeroPoint) / (fullPoint - zeroPoint)) * 100;
+        return clamp(score, 0, 100);
+    }
 
-
-    private static int weightedScore(int componentScore, int componentMax, int weight) {
-        return Math.round((componentScore / (float) componentMax) * weight);
+    private static double weightedScore(double componentScore, int weight) {
+        return componentScore * weight / 100.0;
     }
 
     private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }
 }

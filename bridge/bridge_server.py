@@ -25,20 +25,20 @@ STUDY_PREFERENCES = {
     "balanced": {
         "label": "Bilanciata",
         "temperatureWeight": 35,
-        "noiseWeight": 35,
-        "humidityWeight": 20,
+        "noiseWeight": 40,
+        "humidityWeight": 25,
     },
     "comfort": {
         "label": "Priorita comfort",
-        "temperatureWeight": 50,
+        "temperatureWeight": 55,
         "noiseWeight": 25,
         "humidityWeight": 20,
     },
     "quiet": {
         "label": "Priorita silenzio",
-        "temperatureWeight": 20,
-        "noiseWeight": 55,
-        "humidityWeight": 15,
+        "temperatureWeight": 10,
+        "noiseWeight": 85,
+        "humidityWeight": 5,
     },
 }
 
@@ -177,46 +177,45 @@ def recommendation_status_for_score(score):
 
 def calculate_room_score(room, preference="balanced"):
     # Mirrors Android RoomScoreCalculator weights for the selected preference.
-    temperature_score = score_temperature(room.get("temperature"))
-    noise_score = score_noise(room.get("noise"))
-    humidity_score = score_humidity(room.get("humidity"))
-
     weights = STUDY_PREFERENCES[preference]
     score = (
-        weighted_score(temperature_score, 35, weights["temperatureWeight"])
-        + weighted_score(noise_score, 35, weights["noiseWeight"])
-        + weighted_score(humidity_score, 20, weights["humidityWeight"])
+        weighted_score(score_temperature(room.get("temperature")), weights["temperatureWeight"])
+        + weighted_score(score_noise(room.get("noise")), weights["noiseWeight"])
+        + weighted_score(score_humidity(room.get("humidity")), weights["humidityWeight"])
     )
-    return max(0, min(100, score))
+    return max(0, min(100, int(score + 0.5)))
 
 
 def score_temperature(temperature):
-    temperature = float(temperature)
-    if 20 <= temperature <= 23:
-        return 35
-    if 18 <= temperature <= 25:
-        return 25
-    if 16 <= temperature <= 28:
-        return 15
-    return 5
+    value = float(temperature)
+    if 20 <= value <= 23:
+        return 100.0
+    if value < 20:
+        return linear_score(value, 16, 20)
+    return linear_score(value, 30, 23)
 
 
 def score_noise(noise):
     noise = max(0.0, min(100.0, float(noise)))
-    return int(35 - (noise / 100.0) * 35 + 0.5)
+    return 100.0 - noise
 
 
 def score_humidity(humidity):
-    humidity = float(humidity)
-    if 40 <= humidity <= 60:
-        return 20
-    if 30 <= humidity <= 70:
-        return 12
-    return 5
+    value = float(humidity)
+    if 40 <= value <= 60:
+        return 100.0
+    if value < 40:
+        return linear_score(value, 20, 40)
+    return linear_score(value, 80, 60)
 
 
-def weighted_score(component_score, component_max, weight):
-    return int((component_score / component_max) * weight + 0.5)
+def linear_score(value, zero_point, full_point):
+    score = ((value - zero_point) / (full_point - zero_point)) * 100
+    return max(0.0, min(100.0, score))
+
+
+def weighted_score(component_score, weight):
+    return component_score * weight / 100.0
 
 
 def request_json(url, method="GET", payload=None):

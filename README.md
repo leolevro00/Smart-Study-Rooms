@@ -1119,16 +1119,37 @@ e mostra:
 
 ## Score dell'aula
 
-Lo score e calcolato lato Android, non su Arduino.
+Lo score e calcolato lato Android, non su Arduino. Arduino invia solo i dati grezzi; app e bridge usano la stessa formula per ottenere risultati coerenti anche con il LED giallo dell'aula migliore.
 
-Componenti principali:
+Lo score finale va da 0 a 100 ed e una somma pesata di tre componenti:
 
-- temperatura;
-- rumore;
-- umidita;
-- presenza.
+```text
+score = temperaturaComponent * pesoTemperatura
+      + rumoreComponent * pesoRumore
+      + umiditaComponent * pesoUmidita
+```
 
-Classificazione:
+Ogni componente viene prima normalizzata da 0 a 100:
+
+```text
+temperaturaComponent = 100 se la temperatura e tra 20 e 23 gradi
+rumoreComponent      = 100 - noise
+umiditaComponent     = 100 se l'umidita e tra 40% e 60%
+```
+
+Per temperatura e umidita, se il valore esce dal range ideale il punteggio scende gradualmente, non a scaglioni. Questo evita che due situazioni diverse vengano valutate allo stesso modo.
+
+Pesi usati dalle preferenze:
+
+```text
+Bilanciata          -> temperatura 35%, rumore 40%, umidita 25%
+Priorita silenzio   -> temperatura 10%, rumore 85%, umidita 5%
+Priorita comfort    -> temperatura 55%, rumore 25%, umidita 20%
+```
+
+Nella preferenza `Priorita silenzio`, il rumore domina davvero la scelta. Per esempio, se Aula 1 ha `noise = 64` e Aula 2 ha `noise = 97`, Aula 1 ottiene molti piu punti sul rumore e viene preferita, salvo casi estremi sugli altri parametri.
+
+Classificazione mostrata nell'app:
 
 ```text
 score >= 80       -> Consigliata
@@ -1137,36 +1158,13 @@ score >= 40       -> Poco adatta
 score < 40        -> Sconsigliata
 ```
 
-L'utente puo cambiare preferenza di studio:
-
-- `Bilanciata`;
-- `Priorita silenzio`;
-- `Priorita comfort`;
-- `Priorita aula libera`.
-
-La preferenza modifica i pesi dello score.
-
-
-### Punteggio rumore nello score
-
-Il punteggio del rumore non usa piu soglie rigide a scaglioni. Viene calcolato in modo continuo: piu il valore `noise` sale, piu il punteggio rumore scende.
-
-Questo e importante soprattutto con la preferenza `Priorita silenzio`: se Aula 1 ha rumore 50 e Aula 2 ha rumore 79, Aula 1 deve essere preferita perche e effettivamente piu silenziosa, anche se entrambe sono classificate come rumorose.
-
-Formula concettuale:
+La preferenza scelta dall'app viene salvata in Firebase:
 
 ```text
-noiseScore = 35 - (noise / 100) * 35
+settings/studyPreference = balanced | quiet | comfort
 ```
 
-Quindi:
-
-```text
-noise 0   -> punteggio rumore 35/35
-noise 50  -> punteggio rumore circa 18/35
-noise 79  -> punteggio rumore circa 7/35
-noise 100 -> punteggio rumore 0/35
-```
+Il bridge legge questo valore e usa la stessa preferenza per decidere quale LED giallo accendere.
 ## Notifiche Android
 
 L'app puo inviare notifiche locali quando il rumore supera la soglia:
