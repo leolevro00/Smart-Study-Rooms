@@ -10,8 +10,9 @@ const char* ROOM_NAME = "Aula 1";
 const int DHT_PIN = 2;
 const int DHT_TYPE = DHT22; // Change to DHT11 if needed.
 const int NOISE_PIN = A1; // Connect the analog output AO of the noise sensor here.
-const int GREEN_LED_PIN = 12; //Led for cooling
-const int RED_LED_PIN = 13; //Led for heating
+const int GREEN_LED_PIN = 12; // LED for cooling
+const int RED_LED_PIN = 13; // LED for heating
+const int YELLOW_LED_PIN = 11; // LED on when this is the recommended room
 
 
 // Noise calibration. The sketch samples the microphone for a short window and
@@ -19,8 +20,8 @@ const int RED_LED_PIN = 13; //Led for heating
 const unsigned long NOISE_SAMPLE_WINDOW_MS = 80;
 const int NOISE_RAW_MIN = 5;
 const int NOISE_RAW_MAX = 120;
-const float HEATING_THRESHOLD = 25.0; // soglia in °C per attuare il raffrescamento
-const float COOLING_THRESHOLD = 20.0; //soglia in °C per attuare il riscaldamento
+const float HEATING_THRESHOLD = 25.0; // upper temperature threshold: simulate cooling
+const float COOLING_THRESHOLD = 20.0; // lower temperature threshold: simulate heating
 const unsigned long SEND_INTERVAL_MS = 10000;
 
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -39,8 +40,10 @@ void setup() {
   pinMode(NOISE_PIN, INPUT);
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(RED_LED_PIN, OUTPUT);
+  pinMode(YELLOW_LED_PIN, OUTPUT);
   digitalWrite(GREEN_LED_PIN, LOW);
   digitalWrite(RED_LED_PIN, LOW);
+  digitalWrite(YELLOW_LED_PIN, LOW);
  
 
   randomSeed(analogRead(A5));
@@ -48,6 +51,8 @@ void setup() {
 }
 
 void loop() {
+  handleSerialCommands();
+
 #if !USE_SIMULATION
   int currentNoise = readNoiseLevel();
   if (currentNoise > maxNoiseSinceLastSend) {
@@ -60,14 +65,35 @@ void loop() {
     lastSendMs = now;
 
     RoomReading reading = readRoom(maxNoiseSinceLastSend);
-    if (reading.temperature > HEATING_THRESHOLD) {
-      digitalWrite(GREEN_LED_PIN, HIGH);
-    }
-    if (reading.temperature < COOLING_THRESHOLD) {
-      digitalWrite(RED_LED_PIN, HIGH);
-    }
+    updateTemperatureActuators(reading.temperature);
     Serial.println(buildJsonPayload(reading));
     maxNoiseSinceLastSend = 0;
+  }
+}
+
+void handleSerialCommands() {
+  while (Serial.available() > 0) {
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+
+    if (command == "BEST_LED_ON") {
+      digitalWrite(YELLOW_LED_PIN, HIGH);
+    } else if (command == "BEST_LED_OFF") {
+      digitalWrite(YELLOW_LED_PIN, LOW);
+    }
+  }
+}
+
+void updateTemperatureActuators(float temperature) {
+  if (temperature > HEATING_THRESHOLD) {
+    digitalWrite(GREEN_LED_PIN, HIGH);
+    digitalWrite(RED_LED_PIN, LOW);
+  } else if (temperature < COOLING_THRESHOLD) {
+    digitalWrite(GREEN_LED_PIN, LOW);
+    digitalWrite(RED_LED_PIN, HIGH);
+  } else {
+    digitalWrite(GREEN_LED_PIN, LOW);
+    digitalWrite(RED_LED_PIN, LOW);
   }
 }
 
@@ -145,3 +171,4 @@ String buildJsonPayload(RoomReading reading) {
 
   return json;
 }
+

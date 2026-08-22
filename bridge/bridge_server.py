@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Smart Study Rooms local bridge.
 
 The bridge receives room readings from Arduino nodes over the local network,
@@ -17,6 +17,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 ROOM_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,40}$")
+ROOM_NAMES = {
+    "room1": "Aula 1",
+    "room2": "Aula 2",
+}
 
 
 class ValidationError(Exception):
@@ -34,6 +38,49 @@ class BridgeConfig:
         if self.auth_token:
             url += "?auth=" + urllib.parse.quote(self.auth_token)
         return url
+
+
+class BridgeState:
+    def __init__(self):
+        self.rooms = {}
+        self.scores = {}
+        self.best_room_id = None
+        self.actuators = {}
+
+    def update_room(self, room_id, payload):
+        self.rooms[room_id] = payload
+        self.recalculate()
+
+    def recalculate(self):
+        self.scores = {
+            room_id: calculate_room_score(payload)
+            for room_id, payload in self.rooms.items()
+        }
+        if not self.scores:
+            self.best_room_id = None
+            self.actuators = {}
+            return
+
+        self.best_room_id = max(self.scores, key=self.scores.get)
+        self.actuators = {
+            room_id: {"bestRoomLed": room_id == self.best_room_id}
+            for room_id in self.rooms.keys()
+        }
+
+    def actuator_state(self, room_id):
+        return self.actuators.get(room_id, {"bestRoomLed": False})
+
+    def recommendation_payload(self):
+        if not self.best_room_id:
+            return None
+        payload = {
+            "bestRoomId": self.best_room_id,
+            "bestRoomName": ROOM_NAMES.get(self.best_room_id, self.best_room_id),
+            "updatedAt": int(time.time() * 1000),
+        }
+        for room_id, score in self.scores.items():
+            payload[f"{room_id}Score"] = score
+        return payload
 
 
 def validate_room_id(room_id):
@@ -67,7 +114,7 @@ def validate_payload(room_id, payload):
     if not isinstance(name, str):
         raise ValidationError("name deve essere una stringa")
 
-    return {
+    clean_payload = {
         "name": name[:60],
         "temperature": required_number(payload, "temperature", -10, 50),
         "humidity": required_number(payload, "humidity", 0, 100),
@@ -75,6 +122,58 @@ def validate_payload(room_id, payload):
         "lastUpdate": timestamp,
         "source": "bridge",
     }
+    if "presence" in payload:
+        clean_payload["presence"] = required_bool(payload, "presence")
+    return clean_payload
+
+
+def calculate_room_score(room):
+    # Mirrors Android RoomScoreCalculator.calculateScore(room, BALANCED).
+    temperature_score = score_temperature(room.get("temperature"))
+    noise_score = score_noise(room.get("noise"))
+    humidity_score = score_humidity(room.get("humidity"))
+
+    score = (
+        weighted_score(temperature_score, 35, 35)
+        + weighted_score(noise_score, 35, 35)
+        + weighted_score(humidity_score, 20, 20)
+    )
+    return max(0, min(100, score))
+
+
+def score_temperature(temperature):
+    temperature = float(temperature)
+    if 20 <= temperature <= 23:
+        return 35
+    if 18 <= temperature <= 25:
+        return 25
+    if 16 <= temperature <= 28:
+        return 15
+    return 5
+
+
+def score_noise(noise):
+    noise = float(noise)
+    if noise <= 10:
+        return 35
+    if noise <= 20:
+        return 22
+    if noise <= 30:
+        return 10
+    return 3
+
+
+def score_humidity(humidity):
+    humidity = float(humidity)
+    if 40 <= humidity <= 60:
+        return 20
+    if 30 <= humidity <= 70:
+        return 12
+    return 5
+
+
+def weighted_score(component_score, component_max, weight):
+    return int((component_score / component_max) * weight + 0.5)
 
 
 def put_json(url, payload):
@@ -91,10 +190,15 @@ def put_json(url, payload):
 
 class BridgeRequestHandler(BaseHTTPRequestHandler):
     config = None
+    state = BridgeState()
 
     def do_GET(self):
         if self.path in ("/", "/health"):
             self.write_json(200, {"status": "ok", "service": "smart-study-rooms-bridge"})
+            return
+        actuator_room_id = self.extract_actuator_room_id()
+        if actuator_room_id:
+            self.write_json(200, self.state.actuator_state(actuator_room_id))
             return
         self.write_json(404, {"error": "endpoint non trovato"})
 
@@ -113,6 +217,21 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                 history_url = self.config.firebase_url(f"history/{room_id}/{timestamp}")
                 history_status, _ = put_json(history_url, clean_payload)
 
+            self.state.update_room(room_id, clean_payload)
+            actuator_status = self.state.actuator_state(room_id)
+            recommendation_status = None
+            recommendation = self.state.recommendation_payload()
+            if recommendation:
+                recommendation_status, _ = put_json(
+                    self.config.firebase_url("recommendation"),
+                    recommendation,
+                )
+                for actuator_room_id, actuator_payload in self.state.actuators.items():
+                    put_json(
+                        self.config.firebase_url(f"actuators/{actuator_room_id}"),
+                        actuator_payload,
+                    )
+
             self.write_json(
                 200,
                 {
@@ -120,6 +239,10 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
                     "roomId": room_id,
                     "firebaseStatus": current_status,
                     "historyStatus": history_status,
+                    "recommendationStatus": recommendation_status,
+                    "score": self.state.scores.get(room_id),
+                    "bestRoomId": self.state.best_room_id,
+                    "actuator": actuator_status,
                     "payload": clean_payload,
                 },
             )
@@ -136,6 +259,13 @@ class BridgeRequestHandler(BaseHTTPRequestHandler):
         if len(parts) != 2 or parts[0] != "rooms":
             raise ValidationError("usa POST /rooms/<room_id>")
         return validate_room_id(parts[1])
+
+    def extract_actuator_room_id(self):
+        path = urllib.parse.urlparse(self.path).path.strip("/")
+        parts = path.split("/")
+        if len(parts) == 2 and parts[0] == "actuators":
+            return validate_room_id(parts[1])
+        return None
 
     def read_json_body(self):
         content_length = int(self.headers.get("Content-Length", "0"))
@@ -196,3 +326,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

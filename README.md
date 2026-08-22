@@ -10,7 +10,8 @@ Il progetto include:
 - un'app Android nativa in Java/XML;
 - calcolo score e preferenze utente;
 - notifiche locali quando un'aula diventa troppo rumorosa;
-- storico dati su Firebase tramite bridge.
+- storico dati su Firebase tramite bridge;
+- attuatori fisici con LED rosso/verde per temperatura e LED giallo per aula consigliata.
 
 ## Indice rapido
 
@@ -26,7 +27,8 @@ Usa questa legenda per saltare subito ai punti principali del progetto:
 8. [Due PC, un solo bridge](#due-pc-un-solo-bridge)
 9. [Avviare l'app Android](#6-avviare-lapp-android)
 10. [Predizioni ML based](#predizioni-ml-based)
-11. [Troubleshooting](#troubleshooting)
+11. [Attuatori e LED](#attuatori-e-led)
+12. [Troubleshooting](#troubleshooting)
 
 ## Architettura del progetto
 
@@ -81,7 +83,7 @@ Arduino UNO n.1 -> USB seriale -> serial_to_bridge.py -> Bridge Python -> Fireba
 Arduino UNO n.2 -> USB seriale -> serial_to_bridge.py -> Bridge Python -> Firebase -> Android
 ```
 
-Il bridge e il punto centrale del sistema. Riceve dati dai due script seriali, li valida, aggiunge un timestamp affidabile e aggiorna Firebase.
+Il bridge e il punto centrale del sistema. Riceve dati dai due script seriali, li valida, aggiunge un timestamp affidabile e aggiorna Firebase. Inoltre calcola quale aula e migliore e manda ai due Arduino il comando per accendere o spegnere il LED giallo dell aula consigliata.
 
 ## Perche esiste il bridge
 
@@ -94,7 +96,8 @@ Serve a:
 - aggiungere `lastUpdate` lato PC/gateway;
 - salvare sia lo stato corrente sia lo storico;
 - unificare i due Arduino UNO collegati via seriale;
-- preparare il progetto a sviluppi futuri come AI, notifiche cloud o controllo remoto.
+- preparare il progetto a sviluppi futuri come AI, notifiche cloud o controllo remoto;
+- gestire gli attuatori fisici, per esempio il LED giallo acceso solo sull aula migliore.
 
 In una versione reale, il bridge potrebbe girare su Raspberry Pi, server locale o cloud. In questo prototipo gira su PC.
 
@@ -177,6 +180,9 @@ Il bridge aggiorna lo stato corrente delle aule in:
 ```text
 rooms/room1
 rooms/room2
+recommendation
+actuators/room1
+actuators/room2
 ```
 
 Esempio:
@@ -206,6 +212,87 @@ Esempio:
 }
 ```
 
+## Attuatori e LED
+
+Il progetto usa anche tre LED su ogni Arduino UNO:
+
+```text
+LED verde  -> simula raffrescamento/condizionatore
+LED rosso   -> simula riscaldamento
+LED giallo  -> indica che questa e l aula consigliata
+```
+
+### LED rosso e verde
+
+Questi due LED sono gestiti direttamente da Arduino in base alla temperatura letta dal sensore:
+
+```text
+temperatura > 25 C  -> LED verde acceso, raffrescamento simulato
+temperatura < 20 C  -> LED rosso acceso, riscaldamento simulato
+20 C <= temperatura <= 25 C -> entrambi spenti
+```
+
+Questa logica resta locale perche dipende solo dalla temperatura della singola aula.
+
+### LED giallo aula consigliata
+
+Il LED giallo invece dipende dal confronto tra `room1` e `room2`, quindi non puo essere deciso dal singolo Arduino da solo.
+
+La logica e questa:
+
+```text
+Arduino room1 -> serial_to_bridge -> bridge
+Arduino room2 -> serial_to_bridge -> bridge
+bridge calcola score room1 e room2 con la stessa logica Android bilanciata
+bridge decide bestRoomId
+bridge salva recommendation e actuators su Firebase
+serial_to_bridge legge /actuators/<room_id>
+serial_to_bridge manda BEST_LED_ON oppure BEST_LED_OFF ad Arduino
+Arduino accende o spegne il LED giallo
+```
+
+Il bridge garantisce che nello stato logico solo una stanza abbia:
+
+```json
+{"bestRoomLed": true}
+```
+
+Esempio su Firebase:
+
+```json
+{
+  "recommendation": {
+    "bestRoomId": "room1",
+    "bestRoomName": "Aula 1",
+    "room1Score": 87,
+    "room2Score": 61,
+    "updatedAt": 1710000000000
+  },
+  "actuators": {
+    "room1": {
+      "bestRoomLed": true
+    },
+    "room2": {
+      "bestRoomLed": false
+    }
+  }
+}
+```
+
+Sullo sketch Arduino il LED giallo e collegato al pin:
+
+```cpp
+const int YELLOW_LED_PIN = 11;
+```
+
+I comandi seriali riconosciuti da Arduino sono:
+
+```text
+BEST_LED_ON
+BEST_LED_OFF
+```
+
+Non serve modificare l app Android per questa feature: l app continua a leggere Firebase e mostrare score/aula consigliata. La decisione fisica dei LED viene gestita dal bridge, cosi funziona anche se l app non e aperta. Nota: se in app scegli una preferenza diversa da `Bilanciata`, il LED giallo continua a seguire la logica bilanciata del bridge.
 Il bridge salva anche uno storico:
 
 ```text
@@ -334,10 +421,11 @@ Controlla di avere:
 4. Collega Arduino UNO n.1 e Arduino UNO n.2 via USB.
 5. Apri il secondo terminale e avvia `serial_to_bridge.py` per `room1`.
 6. Apri il terzo terminale e avvia `serial_to_bridge.py` per `room2`.
-7. Controlla che Firebase riceva `rooms/room1` e `rooms/room2`.
+7. Controlla che Firebase riceva `rooms/room1`, `rooms/room2`, `recommendation` e `actuators`.
 8. Apri Android Studio e avvia l'app.
 9. Se vuoi usare anche le predizioni, avvia `lm/predictor.py` in un altro terminale.
 10. Controlla che l'app mostri dati realtime, score, aula consigliata e predizioni.
+11. Controlla che un solo LED giallo sia acceso: deve essere quello dell aula con score migliore.
 
 ### Terminale 1: bridge Python
 
@@ -492,6 +580,11 @@ rooms
   room2
 
 history
+  room1
+  room2
+
+recommendation
+actuators
   room1
   room2
 ```
@@ -980,7 +1073,11 @@ L'app legge da Firebase:
 ```text
 rooms/room1
 rooms/room2
+predictions/room1
+predictions/room2
 ```
+
+Il nodo `actuators` non deve essere letto dall app per accendere i LED: viene usato dal bridge e dagli script seriali.
 
 e mostra:
 
@@ -1649,3 +1746,5 @@ Soluzioni:
 - lascia girare il bridge piu a lungo;
 - abbassa temporaneamente `--horizon-minutes`, per esempio a `1`;
 - verifica che `history/room1` o `history/room2` contenga abbastanza misure.
+
+
