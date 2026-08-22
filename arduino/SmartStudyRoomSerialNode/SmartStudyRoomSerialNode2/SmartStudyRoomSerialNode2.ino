@@ -19,7 +19,7 @@ const int RED_LED_PIN = 13; //Led for heating
 const unsigned long NOISE_SAMPLE_WINDOW_MS = 80;
 const int NOISE_RAW_MIN = 5;
 const int NOISE_RAW_MAX = 120;
-const float HEATING_THRESHOLD = 26.0; // soglia in °C per attuare il raffrescamento
+const float HEATING_THRESHOLD = 25.0; // soglia in °C per attuare il raffrescamento
 const float COOLING_THRESHOLD = 20.0; //soglia in °C per attuare il riscaldamento
 const unsigned long SEND_INTERVAL_MS = 10000;
 
