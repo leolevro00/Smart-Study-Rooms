@@ -1792,7 +1792,7 @@ predictions/room1
 predictions/room2
 ```
 
-Se compare solo `predictions/room2`, significa che nel dataset avevi solo dati di `room2`. Per avere anche `room1`, devi avere dati in `history/room1` oppure usare un JSON esportato da `history/room1`.
+Se compare solo `predictions/room2`, controlla i conteggi stampati dal predictor. Se `History rows` non contiene `room1`, lo script non sta trovando dati validi per Aula 1. I campi obbligatori sono `temperature`, `humidity` e `noise`; `presence` e opzionale e, se manca, viene considerato `false`.
 
 ## Visualizzare le predizioni nell'app Android
 

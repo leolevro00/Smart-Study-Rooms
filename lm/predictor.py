@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Build an ML dataset from Firebase history and predict future room scores.
 
 Input options:
@@ -66,7 +66,7 @@ def load_local_history(path, room_id=None):
 
 
 def looks_like_measurement(value):
-    return isinstance(value, dict) and {"temperature", "humidity", "noise", "presence"}.issubset(value.keys())
+    return isinstance(value, dict) and {"temperature", "humidity", "noise"}.issubset(value.keys())
 
 
 def normalize_history_json(data, room_id=None):
@@ -91,39 +91,48 @@ def normalize_history_json(data, room_id=None):
 
 
 def calculate_score(row):
-    temperature = float(row["temperature"])
-    humidity = float(row["humidity"])
-    noise = float(row["noise"])
-    presence = bool(row["presence"])
+    temperature_component = score_temperature(row["temperature"])
+    noise_component = score_noise(row["noise"])
+    humidity_component = score_humidity(row["humidity"])
 
-    if 20 <= temperature <= 23:
-        temperature_score = 35
-    elif 18 <= temperature <= 25:
-        temperature_score = 25
-    elif 16 <= temperature <= 28:
-        temperature_score = 15
-    else:
-        temperature_score = 5
+    score = (
+        weighted_score(temperature_component, 35)
+        + weighted_score(noise_component, 40)
+        + weighted_score(humidity_component, 25)
+    )
+    return max(0, min(100, int(round(score))))
 
-    if noise <= 40:
-        noise_score = 35
-    elif noise <= 60:
-        noise_score = 22
-    elif noise <= 75:
-        noise_score = 10
-    else:
-        noise_score = 3
 
-    if 40 <= humidity <= 60:
-        humidity_score = 20
-    elif 30 <= humidity <= 70:
-        humidity_score = 12
-    else:
-        humidity_score = 5
+def score_temperature(temperature):
+    value = float(temperature)
+    if 20 <= value <= 23:
+        return 100.0
+    if value < 20:
+        return linear_score(value, 16, 20)
+    return linear_score(value, 30, 23)
 
-    presence_score = 5 if presence else 10
-    return max(0, min(100, temperature_score + noise_score + humidity_score + presence_score))
 
+def score_noise(noise):
+    value = max(0.0, min(100.0, float(noise)))
+    return 100.0 - value
+
+
+def score_humidity(humidity):
+    value = float(humidity)
+    if 40 <= value <= 60:
+        return 100.0
+    if value < 40:
+        return linear_score(value, 20, 40)
+    return linear_score(value, 80, 60)
+
+
+def linear_score(value, zero_point, full_point):
+    score = ((value - zero_point) / (full_point - zero_point)) * 100
+    return max(0.0, min(100.0, score))
+
+
+def weighted_score(component_score, weight):
+    return component_score * weight / 100.0
 
 def history_to_dataframe(history):
     rows = []
@@ -148,7 +157,7 @@ def history_to_dataframe(history):
                         "temperature": float(value["temperature"]),
                         "humidity": float(value["humidity"]),
                         "noise": float(value["noise"]),
-                        "presence": 1 if bool(value["presence"]) else 0,
+                        "presence": 1 if bool(value.get("presence", False)) else 0,
                     }
                 )
             except (KeyError, TypeError, ValueError):
@@ -251,13 +260,25 @@ def load_history(args):
     raise SystemExit("Specifica --history-json oppure --database-host")
 
 
+def print_room_counts(label, df):
+    counts = df.groupby("room_id").size().to_dict() if not df.empty else {}
+    print(f"{label}: {counts}")
+
+
 def run_once(args):
     history = load_history(args)
     df = history_to_dataframe(history)
     if df.empty:
         raise SystemExit("Nessun dato valido trovato nello storico")
 
+    print_room_counts("History rows", df)
+
     dataset = add_future_target(df, args.horizon_minutes)
+    if dataset.empty:
+        raise SystemExit("Nessuna riga di training creata: abbassa --horizon-minutes oppure raccogli piu storico")
+
+    print_room_counts("Training rows by room", dataset)
+
     if args.export_csv:
         dataset.to_csv(args.export_csv, index=False)
         print(f"Dataset esportato in {args.export_csv} ({len(dataset)} righe)")
