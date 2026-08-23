@@ -1,6 +1,10 @@
 # Smart Study Rooms
 
-Smart Study Rooms e un progetto universitario IoT per monitorare in tempo reale due aule studio e suggerire quale aula sia piu adatta allo studio in base a temperatura, umidita, rumore e presenza.
+Smart Study Rooms è un progetto universitario IoT per monitorare in tempo reale due aule studio e suggerire quale aula sia più adatta allo studio in base a temperatura, umidità e rumore.
+
+
+Smart Study Rooms crea un digital twin di ogni aula studio: i nodi IoT raccolgono dati ambientali, il bridge software li valida e li sincronizza su Firebase, mentre l'app Android mostra lo stato realtime delle aule e suggerisce quella piu adatta allo studio.
+
 
 Il progetto include:
 
@@ -83,21 +87,20 @@ Arduino UNO n.1 -> USB seriale -> serial_to_bridge.py -> Bridge Python -> Fireba
 Arduino UNO n.2 -> USB seriale -> serial_to_bridge.py -> Bridge Python -> Firebase -> Android
 ```
 
-Il bridge e il punto centrale del sistema. Riceve dati dai due script seriali, li valida, aggiunge un timestamp affidabile e aggiorna Firebase. Inoltre calcola quale aula e migliore e manda ai due Arduino il comando per accendere o spegnere il LED giallo dell aula consigliata.
+Il bridge rappresenta il punto centrale del sistema. Riceve i dati dai due script seriali, li valida, aggiunge un timestamp affidabile e aggiorna Firebase. Inoltre calcola quale aula sia migliore e manda ai due Arduino il comando per accendere o spegnere il LED giallo dell'aula consigliata.
 
-## Perche esiste il bridge
+## Perchè esiste il bridge
 
 Il bridge software simula un gateway IoT locale.
 
 Serve a:
-
 - evitare che ogni microcontrollore debba parlare direttamente con Firebase;
 - validare i dati prima di salvarli;
 - aggiungere `lastUpdate` lato PC/gateway;
 - salvare sia lo stato corrente sia lo storico;
 - unificare i due Arduino UNO collegati via seriale;
 - preparare il progetto a sviluppi futuri come AI, notifiche cloud o controllo remoto;
-- gestire gli attuatori fisici, per esempio il LED giallo acceso solo sull aula migliore.
+- gestire gli attuatori fisici, per esempio il LED giallo acceso solo sull'aula migliore.
 
 In una versione reale, il bridge potrebbe girare su Raspberry Pi, server locale o cloud. In questo prototipo gira su PC.
 
@@ -146,9 +149,9 @@ In una versione reale, il bridge potrebbe girare su Raspberry Pi, server locale 
 Nodo utilizzato:
 
 - Arduino UNO n.1 senza modulo Wi-Fi;
-- sensore temperatura/umidita DHT11 o DHT22;
-- sensore rumore analogico KY-037/KY-038 o simile;
-- sensore PIR opzionale;
+- sensore temperatura/umidità DHT22;
+- sensore rumore analogico KY-037;
+- attuatori;
 - collegamento USB al PC.
 
 Sketch:
@@ -162,9 +165,9 @@ arduino/SmartStudyRoomSerialNode/SmartStudyRoomSerialNode1.ino
 Nodo utilizzato:
 
 - Arduino UNO n.2 senza modulo Wi-Fi;
-- sensore temperatura/umidita DHT11 o DHT22;
-- sensore rumore analogico KY-037/KY-038 o simile;
-- sensore PIR opzionale;
+- sensore temperatura/umidità DHT22;
+- sensore rumore analogico KY-037;
+- attuatori;
 - collegamento USB al PC.
 
 Sketch:
@@ -195,7 +198,6 @@ Esempio:
       "temperature": 22.4,
       "humidity": 48,
       "noise": 35,
-      "presence": true,
       "lastUpdate": 1710000000000,
       "source": "bridge"
     },
@@ -204,7 +206,6 @@ Esempio:
       "temperature": 24.1,
       "humidity": 52,
       "noise": 61,
-      "presence": false,
       "lastUpdate": 1710000000000,
       "source": "bridge"
     }
@@ -217,9 +218,9 @@ Esempio:
 Il progetto usa anche tre LED su ogni Arduino UNO:
 
 ```text
-LED verde  -> simula raffrescamento/condizionatore
+LED verde   -> simula raffrescamento/condizionatore
 LED rosso   -> simula riscaldamento
-LED giallo  -> indica che questa e l aula consigliata
+LED giallo  -> indica che questa è l'aula consigliata
 ```
 
 ### LED rosso e verde
@@ -227,23 +228,23 @@ LED giallo  -> indica che questa e l aula consigliata
 Questi due LED sono gestiti direttamente da Arduino in base alla temperatura letta dal sensore:
 
 ```text
-temperatura > 25 C  -> LED verde acceso, raffrescamento simulato
-temperatura < 20 C  -> LED rosso acceso, riscaldamento simulato
-20 C <= temperatura <= 25 C -> entrambi spenti
+temperatura > 25 °C  -> LED verde acceso, raffrescamento simulato
+temperatura < 20 °C  -> LED rosso acceso, riscaldamento simulato
+20 °C <= temperatura <= 25 °C -> entrambi spenti
 ```
 
-Questa logica resta locale perche dipende solo dalla temperatura della singola aula.
+Questa logica resta locale perchè dipende solo dalla temperatura della singola aula.
 
 ### LED giallo aula consigliata
 
-Il LED giallo invece dipende dal confronto tra `room1` e `room2`, quindi non puo essere deciso dal singolo Arduino da solo.
+Il LED giallo invece dipende dal confronto tra `room1` e `room2`, quindi non può essere deciso dal singolo Arduino da solo.
 
-La logica e questa:
+La logica è la seguente:
 
 ```text
 Arduino room1 -> serial_to_bridge -> bridge
 Arduino room2 -> serial_to_bridge -> bridge
-bridge calcola score room1 e room2 con la stessa logica Android e con la preferenza scelta all avvio
+bridge calcola score room1 e room2 con la stessa logica Android e con la preferenza scelta all'avvio
 bridge decide bestRoomId
 bridge salva recommendation e actuators su Firebase
 serial_to_bridge legge /actuators/<room_id>
@@ -251,13 +252,13 @@ serial_to_bridge manda BEST_LED_ON oppure BEST_LED_OFF ad Arduino
 Arduino accende o spegne il LED giallo
 ```
 
-La preferenza scelta dall app viene salvata in Firebase:
+La preferenza scelta dall'app viene salvata in Firebase:
 
 ```text
 settings/studyPreference = balanced | comfort | quiet
 ```
 
-Il bridge legge questo valore e ricalcola l aula migliore con gli stessi pesi usati dall app.
+Il bridge legge questo valore e ricalcola l'aula migliore con gli stessi pesi usati dall'app.
 
 Il bridge garantisce che nello stato logico solo una stanza abbia:
 
@@ -289,7 +290,7 @@ Esempio su Firebase:
 }
 ```
 
-Sullo sketch Arduino il LED giallo e collegato al pin:
+Sullo sketch Arduino il LED giallo è collegato al pin:
 
 ```cpp
 const int YELLOW_LED_PIN = 11;
@@ -302,7 +303,7 @@ BEST_LED_ON
 BEST_LED_OFF
 ```
 
-Non serve modificare l app Android per questa feature: l app continua a leggere Firebase e mostrare score/aula consigliata. La decisione fisica dei LED viene gestita dal bridge, cosi funziona anche se l app non e aperta. La preferenza del LED giallo viene letta da Firebase da `settings/studyPreference`, quindi quando cambi preferenza dall app cambia anche la logica del bridge. Il parametro `--study-preference` resta solo come valore iniziale se l app non ha ancora scritto nulla.
+Non serve modificare l'app Android per questa feature: l'app continua a leggere Firebase e mostrare score/aula consigliata. La decisione fisica dei LED viene gestita dal bridge, in modo da funzionare anche se l'app non è aperta. La preferenza del LED giallo viene letta da Firebase da `settings/studyPreference`, quindi quando cambi preferenza dall'app cambia anche la logica del bridge. Il parametro `--study-preference` resta solo come valore iniziale se l'app non ha ancora scritto nulla.
 Il bridge salva anche uno storico:
 
 ```text
@@ -321,7 +322,6 @@ Esempio:
         "temperature": 22.4,
         "humidity": 48,
         "noise": 35,
-        "presence": true,
         "lastUpdate": 1710000000000,
         "source": "bridge"
       }
@@ -332,7 +332,7 @@ Esempio:
 
 ## Regole Firebase per prototipo
 
-Per test iniziale puoi usare:
+Per il test iniziale puoi usare:
 
 ```json
 {
@@ -349,7 +349,7 @@ Le trovi in:
 firebase/database.rules.json
 ```
 
-Attenzione: queste regole sono solo per test. Non sono sicure in produzione, perche chiunque conosca l'URL del database potrebbe leggere o scrivere dati.
+Attenzione: queste regole sono solo per test. Non sono sicure in produzione, perchè chiunque conosca l'URL del database potrebbe leggere o scrivere dati.
 
 ## Configurare Firebase
 
@@ -406,7 +406,7 @@ python3 -m pip install -r bridge/requirements.txt
 
 ## Come far partire tutto il sistema
 
-Questa e la procedura completa consigliata per avviare l'intero ecosistema Smart Study Rooms durante un test o una demo.
+Questa è la procedura completa consigliata per avviare l'intero ecosistema Smart Study Rooms durante un test o una demo.
 
 ### Prima di iniziare
 
@@ -435,7 +435,7 @@ Controlla di avere:
 8. Apri Android Studio e avvia l'app.
 9. Se vuoi usare anche le predizioni, avvia `lm/predictor.py` in un altro terminale.
 10. Controlla che l'app mostri dati realtime, score, aula consigliata e predizioni.
-11. Controlla che un solo LED giallo sia acceso: deve essere quello dell aula con score migliore.
+11. Controlla che un solo LED giallo sia acceso: deve essere quello dell'aula con score migliore.
 
 ### Terminale 1: bridge Python
 
@@ -924,13 +924,13 @@ In alternativa puoi usare:
 hostname -I
 ```
 
-Il primo IP mostrato e spesso quello corretto della rete locale.
+Il primo IP mostrato è spesso quello corretto della rete locale.
 
 #### WSL
 
 Se il bridge gira davvero dentro WSL, attenzione: l'IP di WSL non sempre coincide con l'IP del PC Windows.
 
-Per una demo semplice, conviene avviare il bridge da Windows PowerShell, non dentro WSL, cosi gli altri PC possono raggiungerlo piu facilmente usando l'IP Windows trovato con `ipconfig`.
+Per una demo semplice, conviene avviare il bridge da Windows PowerShell, non dentro WSL, cosi gli altri PC possono raggiungerlo più facilmente usando l'IP Windows trovato con `ipconfig`.
 
 Se vuoi comunque avviare il bridge dentro WSL, puoi vedere l'IP di WSL con:
 
@@ -938,11 +938,11 @@ Se vuoi comunque avviare il bridge dentro WSL, puoi vedere l'IP di WSL con:
 hostname -I
 ```
 
-Pero potresti dover configurare port forwarding o firewall di Windows. Per questo, nella demo e piu semplice usare Python da Windows.
+Pero potresti dover configurare port forwarding o firewall di Windows. Per questo, nella demo risulta più semplice usare Python da Windows.
 
 ### 2. Avviare il bridge sul PC 1
 
-Sul PC 1, cioe il PC bridge, avvia:
+Sul PC 1, cioè il PC bridge, avvia:
 
 ```powershell
 py bridge\bridge_server.py --database-host TUO_DATABASE.firebasedatabase.app
@@ -1076,7 +1076,7 @@ Non e consigliato aprire direttamente:
 \\wsl.localhost\Ubuntu\...
 ```
 
-perche Android Studio e Gradle possono essere lenti o instabili su percorsi WSL/UNC.
+perchè Android Studio e Gradle possono essere lenti o instabili su percorsi WSL/UNC.
 
 Controlla che esista:
 
@@ -1100,7 +1100,7 @@ predictions/room1
 predictions/room2
 ```
 
-Il nodo `actuators` non deve essere letto dall app per accendere i LED: viene usato dal bridge e dagli script seriali.
+Il nodo `actuators` non deve essere letto dall'app per accendere i LED: viene usato dal bridge e dagli script seriali.
 
 e mostra:
 
@@ -1108,7 +1108,6 @@ e mostra:
 - temperatura;
 - umidita;
 - rumore;
-- presenza;
 - ultimo aggiornamento;
 - score;
 - stato;
@@ -1119,9 +1118,9 @@ e mostra:
 
 ## Score dell'aula
 
-Lo score e calcolato lato Android, non su Arduino. Arduino invia solo i dati grezzi; app e bridge usano la stessa formula per ottenere risultati coerenti anche con il LED giallo dell'aula migliore.
+Lo score viene calcolato lato Android, non su Arduino. Arduino invia solo i dati grezzi; app e bridge usano la stessa formula per ottenere risultati coerenti anche con il LED giallo dell'aula migliore.
 
-Lo score finale va da 0 a 100 ed e una somma pesata di tre componenti:
+Lo score finale va da 0 a 100 ed è una somma pesata di tre componenti:
 
 ```text
 score = temperaturaComponent * pesoTemperatura
@@ -1137,7 +1136,7 @@ rumoreComponent      = 100 - noise
 umiditaComponent     = 100 se l'umidita e tra 40% e 60%
 ```
 
-Per temperatura e umidita, se il valore esce dal range ideale il punteggio scende gradualmente, non a scaglioni. Questo evita che due situazioni diverse vengano valutate allo stesso modo.
+Per temperatura e umidità, se il valore esce dal range ideale il punteggio scende gradualmente, non a scaglioni. Questo evita che due situazioni diverse vengano valutate allo stesso modo.
 
 Pesi usati dalle preferenze:
 
@@ -1167,7 +1166,7 @@ settings/studyPreference = balanced | quiet | comfort
 Il bridge legge questo valore e usa la stessa preferenza per decidere quale LED giallo accendere.
 ## Notifiche Android
 
-L'app puo inviare notifiche locali quando il rumore supera la soglia:
+L'app può inviare notifiche locali quando il rumore supera la soglia:
 
 ```text
 noise >= 70
@@ -1194,7 +1193,7 @@ noise: 0 .. 100
 presence: true/false
 ```
 
-Se un dato e fuori range, il bridge risponde con errore `400` e non aggiorna Firebase.
+Se un dato è fuori dal range, il bridge risponde con errore `400` e non aggiorna Firebase.
 
 Esempio dato rifiutato:
 
@@ -1233,7 +1232,7 @@ Controlla:
 - Serial Monitor impostato a `115200 baud`;
 - porta corretta in `serial_to_bridge.py`;
 - Arduino IDE non deve tenere occupata la porta mentre lo script Python la usa;
-- se il Serial Monitor e aperto, chiudilo prima di avviare `serial_to_bridge.py`.
+- se il Serial Monitor è aperto, chiudilo prima di avviare `serial_to_bridge.py`.
 
 ### Firebase non si aggiorna
 
@@ -1255,7 +1254,7 @@ Tools > Device Manager
 
 Crea un virtual device, ad esempio Pixel 6 o Pixel 5.
 
-Se il progetto e lento o Gradle da problemi, aprilo da una cartella Windows locale invece che da WSL.
+Se il progetto è lento o Gradle genera problemi, aprilo da una cartella Windows locale invece che da WSL.
 
 ## Modalita di test consigliata
 
@@ -1281,7 +1280,7 @@ app Android aggiornata in realtime
 
 ## Lettura e calibrazione del rumore
 
-Il sensore KY-037/KY-038 non restituisce direttamente i decibel. Nel progetto viene letto il pin analogico `AO` e Arduino calcola una stima del rumore su scala 0-100.
+Il sensore KY-037 non restituisce direttamente i decibel. Nel progetto viene letto il pin analogico `AO` e Arduino calcola una stima del rumore su scala 0-100.
 
 La logica nello sketch e questa:
 
@@ -1304,7 +1303,7 @@ const int NOISE_RAW_MIN = 0;
 const int NOISE_RAW_MAX = 8;
 ```
 
-`NOISE_RAW_MIN` indica sotto quale variazione il rumore viene considerato nullo. Con valore `0` la sensibilita e massima. `NOISE_RAW_MAX` indica quale variazione analogica corrisponde a 100/100. Con valore `8` anche variazioni piccole vengono amplificate molto.
+`NOISE_RAW_MIN` indica sotto quale variazione il rumore viene considerato nullo. Con valore `0` la sensibilita è massima. `NOISE_RAW_MAX` indica quale variazione analogica corrisponde a 100/100. Con valore `8` anche variazioni piccole vengono amplificate molto.
 
 Se il rumore resta spesso a 0 anche parlando vicino al sensore, prova questa procedura:
 
@@ -1324,22 +1323,22 @@ Esempio:
 {"name":"Aula 1","temperature":22.4,"humidity":48.0,"noise":17,"noisePeak":7}
 ```
 
-Se `noisePeak` resta sempre 0 o 1, il problema e probabilmente hardware/cablaggio/sensibilita del modulo. Controlla:
+Se `noisePeak` resta sempre 0 o 1, il problema è probabilmente hardware/cablaggio/sensibilità del modulo. Bisogna:
 
 - usare il pin analogico `AO`, non `DO`;
-- `AO` collegato ad `A1`;
-- `VCC` e `GND` corretti;
-- microfono orientato correttamente;
-- eventuale trimmer del modulo, se presente;
-- provare un altro sensore, perche alcuni moduli economici hanno uscita analogica molto debole.
+- vedere se `AO` è collegato ad `A1`;
+- vedere se `VCC` e `GND` sono corretti;
+- vedere se il microfono è orientato correttamente;
+- controllare l'eventuale trimmer del modulo, se presente;
+- provare un altro sensore, perchè alcuni moduli economici hanno uscita analogica molto debole.
 
-Se `noisePeak` sale ma `noise` resta troppo basso, abbassa ancora `NOISE_RAW_MAX`. Nel progetto e gia impostato a `8`, quindi la sensibilita e molto alta. Puoi provare anche:
+Se `noisePeak` sale ma `noise` resta troppo basso, abbassa ancora `NOISE_RAW_MAX`. Nel progetto è già impostato a `8`, quindi la sensibilità è molto alta. Puoi provare anche:
 
 ```cpp
 const int NOISE_RAW_MAX = 5;
 ```
 
-Se invece il rumore risulta troppo alto anche in silenzio, e normale: questa taratura privilegia la cattura di rumori piccoli tipici di un aula studio. Per ridurre i falsi positivi, alza `NOISE_RAW_MAX` oppure `NOISE_RAW_MIN`.
+Se invece il rumore risulta troppo alto anche in silenzio, è normale: questa taratura privilegia la cattura di rumori piccoli tipici di un aula studio. Per ridurre i falsi positivi, alza `NOISE_RAW_MAX` oppure `NOISE_RAW_MIN`.
 
 Quando hai finito la calibrazione, rimetti:
 
@@ -1360,11 +1359,7 @@ Quando hai finito la calibrazione, rimetti:
 - Supporto dinamico a piu aule.
 - Prenotazione aula.
 
-## Frase riassuntiva per presentazione
 
-```text
-Smart Study Rooms crea un digital twin di ogni aula studio: i nodi IoT raccolgono dati ambientali, il bridge software li valida e li sincronizza su Firebase, mentre l'app Android mostra lo stato realtime delle aule e suggerisce quella piu adatta allo studio.
-```
 
 ## Predizioni ML based
 
@@ -1388,7 +1383,7 @@ Da quello storico crea un dataset tabellare con colonne come:
 room_id, timestamp, temperature, humidity, noise, presence, hour, day_of_week, score_now, target_score
 ```
 
-Il campo piu importante e `target_score`: rappresenta lo score futuro dell'aula dopo un certo numero di minuti.
+Il campo più importante è `target_score`: rappresenta lo score futuro dell'aula dopo un certo numero di minuti.
 
 Esempio:
 
@@ -1408,7 +1403,7 @@ Per test veloci, soprattutto se hai pochi dati nello storico, puoi usare:
 --horizon-minutes 1
 ```
 
-Il modello usato e:
+Il modello usato è:
 
 ```text
 RandomForestRegressor
@@ -1443,7 +1438,7 @@ Ci sono due modi corretti per usare `lm/predictor.py`.
 
 ### Modo A: leggere direttamente lo storico da Firebase
 
-Usi questo modo quando il database contiene gia il nodo:
+Usi questo modo quando il database contiene già il nodo:
 
 ```text
 history
@@ -1457,7 +1452,7 @@ Schema:
 Firebase history -> predictor.py -> Firebase predictions -> app Android
 ```
 
-Questo e il modo piu comodo quando il bridge e gia stato usato per un po' e ha popolato lo storico.
+Questo è il modo più comodo quando il bridge è già stato usato per un po' e ha popolato lo storico.
 
 ### Modo B: usare un JSON esportato manualmente da Firebase
 
@@ -1469,15 +1464,15 @@ Schema:
 file JSON locale -> predictor.py -> terminale oppure Firebase predictions -> app Android
 ```
 
-Questo e utile se vuoi fare prove offline, controllare il dataset o lavorare su uno storico esportato.
+Questo è utile se vuoi fare prove offline, controllare il dataset o lavorare su uno storico esportato.
 
-Se usi un JSON locale e vuoi anche vedere la predizione nell'app Android, devi comunque aggiungere `--database-host`, perche senza quello lo script stampa solo il risultato nel terminale.
+Se usi un JSON locale e vuoi anche vedere la predizione nell'app Android, devi comunque aggiungere `--database-host`, perchè senza quello lo script stampa solo il risultato nel terminale.
 
 ## Installazione dipendenze ML su Windows PowerShell
 
 Apri PowerShell nella root del progetto.
 
-Se il progetto Android e stato copiato in Windows ma il repository principale e su WSL, puoi usare una cartella Windows oppure aprire PowerShell nella cartella del repo se e accessibile.
+Se il progetto Android è stato copiato in Windows ma il repository principale si trova su WSL, puoi usare una cartella Windows oppure aprire PowerShell nella cartella del repo se è accessibile.
 
 Installa le dipendenze:
 
@@ -1571,13 +1566,13 @@ Se vuoi salvare la predizione anche su Firebase, aggiungi `--database-host`:
 py lm\predictor.py --history-json "C:\Users\leonardo.levrini\Downloads\room2-export.json" --room-id room2 --export-csv dataset-room2.csv --horizon-minutes 1 --database-host TUO_DATABASE.firebasedatabase.app
 ```
 
-Per `room1` e uguale, cambi solo file e room id:
+Per `room1` è uguale, cambi solo file e room id:
 
 ```powershell
 py lm\predictor.py --history-json "C:\Users\leonardo.levrini\Downloads\room1-export.json" --room-id room1 --export-csv dataset-room1.csv --horizon-minutes 1 --database-host TUO_DATABASE.firebasedatabase.app
 ```
 
-Se invece hai esportato tutto il database oppure tutto il nodo `history`, `--room-id` non e necessario perche dentro il JSON sono gia presenti `room1` e `room2`.
+Se invece hai esportato tutto il database oppure tutto il nodo `history`, `--room-id` non è necessario perchè dentro il JSON sono già presenti `room1` e `room2`.
 
 Esempio:
 
@@ -1593,7 +1588,7 @@ Su Ubuntu/WSL recente potresti vedere questo errore se provi a usare `pip` globa
 This environment is externally managed
 ```
 
-E normale. Significa che Ubuntu non vuole che tu installi pacchetti Python globali con `pip`. La soluzione corretta e usare un virtual environment dentro il progetto.
+E' normale. Significa che Ubuntu non vuole che tu installi pacchetti Python globali con `pip`. La soluzione corretta è usare un virtual environment dentro il progetto.
 
 Entra nella cartella del progetto:
 
@@ -1626,7 +1621,7 @@ Attiva l'ambiente:
 source .venv/bin/activate
 ```
 
-Quando e attivo vedrai il prefisso `(.venv)` nel terminale.
+Quando è attivo vedrai il prefisso `(.venv)` nel terminale.
 
 Installa le dipendenze ML:
 
@@ -1634,7 +1629,7 @@ Installa le dipendenze ML:
 pip install -r lm/requirements.txt
 ```
 
-Da questo momento, finche l'ambiente e attivo, usa `python` invece di `python3`:
+Da questo momento, finchè l'ambiente risulta attivo, usa `python` invece di `python3`:
 
 ```bash
 python lm/predictor.py --help
@@ -1788,7 +1783,7 @@ MAE: 11.65
 
 `Training rows` indica quante righe sono state usate per allenare il modello.
 
-`MAE` indica l'errore medio del modello. Piu e basso, meglio e. Per esempio `MAE: 11.65` significa che in media il modello sbaglia di circa 11.65 punti sullo score.
+`MAE` indica l'errore medio del modello. Più è basso, meglio e. Per esempio `MAE: 11.65` significa che in media il modello sbaglia di circa 11.65 punti sullo score.
 
 Se hai usato `--database-host`, controlla Firebase:
 
