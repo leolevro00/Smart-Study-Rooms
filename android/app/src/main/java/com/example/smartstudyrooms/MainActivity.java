@@ -29,6 +29,7 @@ import com.google.firebase.database.ValueEventListener;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import java.util.TimeZone;
 
 public class MainActivity extends AppCompatActivity {
     private static final String NOISE_CHANNEL_ID = "noise_alerts";
@@ -237,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
 
         views.name.setText(valueOrFallback(room.getName(), fallbackName));
         views.temperature.setText("Temperatura: " + formatDecimal(room.getTemperature()) + " \u00B0C");
-        views.humidity.setText("Umidita: " + formatDecimal(room.getHumidity()) + "%");
+        views.humidity.setText("Umidità: " + formatDecimal(room.getHumidity()) + "%");
         views.noise.setText("Rumore: " + RoomScoreCalculator.getNoiseLabel(room.getNoise())
                 + " (" + formatDecimal(room.getNoise()) + ")");
         views.temperatureBar.setProgress(progressValue(room.getTemperature(), 40));
@@ -245,7 +246,7 @@ public class MainActivity extends AppCompatActivity {
         views.noiseBar.setProgress(progressValue(room.getNoise(), 100));
         views.lastUpdate.setText("Ultimo aggiornamento: " + formatTimestamp(room.getLastUpdate()));
         views.score.setText("Score: " + score + "/100");
-        views.status.setText("Qualita: " + status);
+        views.status.setText("Qualità: " + status);
         views.card.setCardBackgroundColor(getColorForStatus(status));
     }
 
@@ -266,14 +267,14 @@ public class MainActivity extends AppCompatActivity {
     private void clearRoom(RoomViews views, String fallbackName) {
         views.name.setText(fallbackName);
         views.temperature.setText("Temperatura: N/D");
-        views.humidity.setText("Umidita: N/D");
+        views.humidity.setText("Umidità: N/D");
         views.noise.setText("Rumore: N/D");
         views.temperatureBar.setProgress(0);
         views.humidityBar.setProgress(0);
         views.noiseBar.setProgress(0);
         views.lastUpdate.setText("Ultimo aggiornamento: N/D");
         views.score.setText("Score: N/D");
-        views.status.setText("Qualita: dati non disponibili");
+        views.status.setText("Qualità: dati non disponibili");
         clearPrediction(views);
         views.card.setCardBackgroundColor(getColor(R.color.card_neutral));
     }
@@ -453,6 +454,7 @@ public class MainActivity extends AppCompatActivity {
 
         long millis = timestamp < 10_000_000_000L ? timestamp * 1000L : timestamp;
         SimpleDateFormat formatter = new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.ITALY);
+        formatter.setTimeZone(TimeZone.getTimeZone("Europe/Rome"));
         return formatter.format(new Date(millis));
     }
 

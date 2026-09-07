@@ -4,10 +4,10 @@
     <color name="text_primary">#17202A</color>
     <color name="text_secondary">#5D6D7E</color>
     <color name="card_neutral">#FFFFFF</color>
-    <color name="status_recommended_bg">#DFF3E4</color>
-    <color name="status_acceptable_bg">#FFF3CD</color>
-    <color name="status_low_bg">#FFE2CC</color>
-    <color name="status_bad_bg">#F8D7DA</color>
+    <color name="status_recommended_bg">#8BC49A</color>
+    <color name="status_acceptable_bg">#E6D58A</color>
+    <color name="status_low_bg">#E4AD7A</color>
+    <color name="status_bad_bg">#C98282</color>
     <color name="message_background">#E8EEF7</color>
     <color name="recommendation_background">#DCEBFF</color>
     <color name="chart_track">#DDE3EA</color>

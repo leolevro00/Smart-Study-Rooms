@@ -97,7 +97,7 @@
                 <TextView
                     android:id="@+id/room1Humidity"
                     style="@style/RoomMetricText"
-                    android:text="Umidita: N/D" />
+                    android:text="Umidità: N/D" />
 
                 <ProgressBar
                     android:id="@+id/room1HumidityBar"
