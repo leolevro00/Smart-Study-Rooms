@@ -23,7 +23,7 @@ const int YELLOW_LED_PIN = 11; // LED on when this is the recommended room
 // KY-037/KY-038 analog signals can be very small. These values intentionally use maximum sensitivity for study rooms.
 const unsigned long NOISE_SAMPLE_WINDOW_MS = 80;
 const int NOISE_RAW_MIN = 0;
-const int NOISE_RAW_MAX = 200;
+const int NOISE_RAW_MAX = 8;
 const float HEATING_THRESHOLD = 25.0; // upper temperature threshold: simulate cooling
 const float COOLING_THRESHOLD = 20.0; // lower temperature threshold: simulate heating
 const unsigned long SEND_INTERVAL_MS = 10000;
